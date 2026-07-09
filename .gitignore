@@ -66,3 +66,9 @@ hs_err_pid*
 application*.yml
 # 保留模板给团队参考
 !application-template.yml
+.idea/workspace.xml   # 个人窗口布局、打开的文件，完全私有
+.idea/tasks.xml       # 本地任务记录
+.idea/shelf/          # 本地搁置的代码
+.idea/misc.xml        # Maven/Gradle 项目可忽略
+.idea/libraries/      # 构建工具自动生成的库配置
+*.iml                 # 模块描述文件，构建工具自动生成
