@@ -2,12 +2,16 @@ package com.qst.smart_warehousing.service.Impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.qst.smart_warehousing.entity.WmsInventoryLog;
 import com.qst.smart_warehousing.entity.WmsParcel;
 import com.qst.smart_warehousing.entity.WmsStorageSlot;
 import com.qst.smart_warehousing.mapper.WmsParcelMapper;
+import com.qst.smart_warehousing.service.WmsInventoryLogService;
 import com.qst.smart_warehousing.service.WmsParcelService;
 import com.qst.smart_warehousing.service.WmsStorageSlotService;
+import com.qst.smart_warehousing.entity.AdminUser;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,6 +19,22 @@ import org.springframework.transaction.annotation.Transactional;
 public class WmsParcelServiceImpl extends ServiceImpl<WmsParcelMapper, WmsParcel> implements WmsParcelService {
     @Autowired
     private WmsStorageSlotService storageSlotService;
+
+    @Autowired
+    private WmsInventoryLogService wmsInventoryLogService;
+
+    /**
+     * 获取当前登录用户的ID（从Spring Security安全口袋里掏）
+     */
+    private Long getCurrentUserId() {
+        try {
+            AdminUser loginUser = (AdminUser) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            return loginUser.getUserId();
+        } catch (Exception e) {
+            return 1L; // 边缘设备或测试未登录时的保底系统管理员ID
+        }
+    }
+
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -44,11 +64,23 @@ public class WmsParcelServiceImpl extends ServiceImpl<WmsParcelMapper, WmsParcel
         slot.setStatus(1);
         storageSlotService.updateById(slot);
 
-        // 4. 更新包裹状态 -> 4 (已上架入库)，并绑定当前货位ID
+        // 4. 更新包裹状态 -> 4 (已上架入库)
         parcel.setStatus(4);
         parcel.setCurrentSlotId(targetSlotId);
+        this.updateById(parcel);
 
-        return this.updateById(parcel);
+        // 5. 【新增】：自动生成入库流水
+        WmsInventoryLog log = new WmsInventoryLog();
+        log.setParcelId(parcel.getParcelId());
+        log.setBarcode(barcode);
+        log.setActionType(1); // 1-入库
+        log.setFromSlotId(null);
+        log.setToSlotId(targetSlotId);
+        log.setOperatorId(getCurrentUserId());
+        log.setProjectId(parcel.getProjectId());
+        log.setTenantId(parcel.getTenantId());
+
+        return wmsInventoryLogService.save(log);
     }
 
     @Override
@@ -77,7 +109,20 @@ public class WmsParcelServiceImpl extends ServiceImpl<WmsParcelMapper, WmsParcel
         parcel.setStatus(5);
         parcel.setCurrentSlotId(null);
 
-        return this.updateById(parcel);
+        this.updateById(parcel);
+
+        // 4. 【新增】：自动生成出库流水
+        WmsInventoryLog log = new WmsInventoryLog();
+        log.setBarcode(barcode);
+        log.setParcelId(parcel.getParcelId());
+        log.setActionType(2); // 2-出库
+        log.setFromSlotId(oldSlotId); // 记录从哪个货位出来的
+        log.setToSlotId(null);
+        log.setOperatorId(getCurrentUserId());
+        log.setProjectId(parcel.getProjectId());
+        log.setTenantId(parcel.getTenantId());
+
+        return wmsInventoryLogService.save(log);
     }
 
     @Override
@@ -115,6 +160,19 @@ public class WmsParcelServiceImpl extends ServiceImpl<WmsParcelMapper, WmsParcel
         // 5. 更新包裹的货位指向
         parcel.setCurrentSlotId(destSlotId);
 
-        return this.updateById(parcel);
+        this.updateById(parcel);
+
+        // 6. 【新增】：自动生成移库流水
+        WmsInventoryLog log = new WmsInventoryLog();
+        log.setBarcode(barcode);
+        log.setParcelId(parcel.getParcelId());
+        log.setActionType(3); // 3-移库
+        log.setFromSlotId(sourceSlot.getSlotId()); // 始发地
+        log.setToSlotId(destSlotId);     // 目的地
+        log.setOperatorId(getCurrentUserId());
+        log.setProjectId(parcel.getProjectId());
+        log.setTenantId(parcel.getTenantId());
+
+        return wmsInventoryLogService.save(log);
     }
 }

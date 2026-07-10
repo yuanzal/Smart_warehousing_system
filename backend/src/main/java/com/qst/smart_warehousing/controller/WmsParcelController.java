@@ -86,7 +86,7 @@ public class WmsParcelController {
         try {
             // 从 DTO 中干净地抽取参数传递给 Service
             boolean success = parcelService.inbound(dto.getBarcode(), dto.getTargetSlotId());
-            return success ? Result.ok("包裹入库落位成功") : Result.error(500, "入库失败");
+            return success ? Result.ok() : Result.error(500, "入库失败");
         } catch (RuntimeException e) {
             return Result.error(400, e.getMessage());
         }
@@ -97,7 +97,7 @@ public class WmsParcelController {
     public Result<?> moveSlot(@RequestBody @Valid ParcelMoveDTO dto) { // <-- 核心变化
         try {
             boolean success = parcelService.moveSlot(dto.getBarcode(), dto.getDestSlotId());
-            return success ? Result.ok("库内移位调度成功") : Result.error(500, "移库失败");
+            return success ? Result.ok() : Result.error(500, "移库失败");
         } catch (RuntimeException e) {
             return Result.error(400, e.getMessage());
         }
@@ -108,7 +108,7 @@ public class WmsParcelController {
     public Result<?> outbound(@RequestBody @Valid ParcelOutboundDTO dto) {
         try {
             boolean success = parcelService.outbound(dto.getBarcode());
-            return success ? Result.ok("包裹出库下架成功") : Result.error(500, "出库失败");
+            return success ? Result.ok() : Result.error(500, "出库失败");
         } catch (RuntimeException e) {
             return Result.error(400, e.getMessage());
         }
