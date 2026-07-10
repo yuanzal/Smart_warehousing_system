@@ -38,8 +38,8 @@ public class AuthController {
         return result;
     }
 
-    @RequestMapping(value = "/logout")
-    @Operation(tags = "用户注销")
+    @PostMapping(value = "/logout")
+    @Operation(summary = "用户注销")
     public Result logout() {
         return adminUserService.logout();
     }

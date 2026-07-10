@@ -16,6 +16,12 @@ public class AuthConst {
             "/relogin",        // 重新登录接口
             "/captcha",        // 验证码接口（如果有）
             "/api/public/**",   // 其他公开接口（支持通配符）
-            "/ai_image/**" //  ai图片接口
+            "/ai_image/**", //  ai图片接口
+            // Swagger3 / Springdoc OpenAPI 标准放行路径
+            "/swagger-ui/**",          // Swagger UI 网页资源
+            "/v3/api-docs/**",         // OpenAPI 3.0 接口描述数据 JSON
+            "/swagger-ui.html",        // 旧版兼容入口
+            "/swagger-resources/**",   // Swagger 资源配置
+            "/webjars/**",             // 网页依赖的静态 jar 包资源
     };
 }
