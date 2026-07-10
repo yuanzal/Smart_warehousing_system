@@ -1,6 +1,6 @@
 spring:
   application:
-    name: smartbuildings  # 服务名
+    name: smart_warehousing  # 服务名
   datasource:
     url: jdbc:mysql://127.0.0.1:3306/db_build_safe?characterEncoding=utf8&useSSL=false&zeroDateTimeBehavior=convertToNull&tinyInt1isBit=false&serverTimezone=Asia/Shanghai
     username: root
@@ -25,7 +25,7 @@ server:
   port: 8080
 mybatis-plus:
   # 配置实体类所在包（多个包用逗号分隔）
-  type-aliases-package: com.qst.smartbuildings.entity
+  type-aliases-package: com.qst.smart_warehousing.entity
   configuration:
     # 开启日志输出
     #    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl  # 控制台打印日志

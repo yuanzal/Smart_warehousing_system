@@ -154,7 +154,7 @@
                 </executions>
                 <configuration>
                     <!-- 替换为你的主类全路径 -->
-                    <mainClass>com.qst.smartbuildings.Main</mainClass>
+                    <mainClass>com.qst.smart_warehousing.Main</mainClass>
                 </configuration>
             </plugin>
         </plugins>
