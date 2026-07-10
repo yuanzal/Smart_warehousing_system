@@ -53,7 +53,10 @@
             <artifactId>spring-boot-starter-web</artifactId>
             <!-- 由 Spring Boot 父工程管理版本，如 3.3.3 -->
         </dependency>
-
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
         <!-- Spring Data Redis 依赖 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

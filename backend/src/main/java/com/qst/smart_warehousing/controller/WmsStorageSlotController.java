@@ -23,21 +23,21 @@ public class WmsStorageSlotController {
     @PostMapping
     public Result<?> add(@RequestBody WmsStorageSlot storageSlot) {
         boolean saved = storageSlotService.save(storageSlot);
-        return saved ? Result.ok("货位添加成功") : Result.error(500, "货位添加失败");
+        return saved ? Result.ok() : Result.error(500, "货位添加失败");
     }
 
     @Operation(summary = "删除货位")
     @DeleteMapping("/{id}")
     public Result<?> delete(@PathVariable Long id) {
         boolean removed = storageSlotService.removeById(id);
-        return removed ? Result.ok("货位删除成功") : Result.error(500, "货位删除失败");
+        return removed ? Result.ok() : Result.error(500, "货位删除失败");
     }
 
     @Operation(summary = "修改货位信息")
     @PutMapping
     public Result<?> update(@RequestBody WmsStorageSlot storageSlot) {
         boolean updated = storageSlotService.updateById(storageSlot);
-        return updated ? Result.ok("货位更新成功") : Result.error(500, "货位更新失败");
+        return updated ? Result.ok() : Result.error(500, "货位更新失败");
     }
 
     @Operation(summary = "根据ID获取单个货位详情(用于大屏弹窗)")

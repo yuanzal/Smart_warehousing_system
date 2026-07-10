@@ -2,11 +2,15 @@ package com.qst.smart_warehousing.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.qst.smart_warehousing.DTO.ParcelInboundDTO;
+import com.qst.smart_warehousing.DTO.ParcelMoveDTO;
+import com.qst.smart_warehousing.DTO.ParcelOutboundDTO;
 import com.qst.smart_warehousing.entity.Result;
 import com.qst.smart_warehousing.entity.WmsParcel;
 import com.qst.smart_warehousing.service.WmsParcelService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -26,14 +30,14 @@ public class WmsParcelController {
             parcel.setVolume(parcel.getLength().multiply(parcel.getWidth()).multiply(parcel.getHeight()));
         }
         boolean saved = parcelService.save(parcel);
-        return saved ? Result.ok("包裹档案建立成功") : Result.error(500, "包裹档案建立失败");
+        return saved ? Result.ok() : Result.error(500, "包裹档案建立失败");
     }
 
     @Operation(summary = "注销/删除包裹")
     @DeleteMapping("/{id}")
     public Result<?> delete(@PathVariable Long id) {
         boolean removed = parcelService.removeById(id);
-        return removed ? Result.ok("包裹档案删除成功") : Result.error(500, "包裹档案删除失败");
+        return removed ? Result.ok() : Result.error(500, "包裹档案删除失败");
     }
 
     @Operation(summary = "更新包裹状态/属性")
@@ -43,7 +47,7 @@ public class WmsParcelController {
             parcel.setVolume(parcel.getLength().multiply(parcel.getWidth()).multiply(parcel.getHeight()));
         }
         boolean updated = parcelService.updateById(parcel);
-        return updated ? Result.ok("包裹档案修改成功") : Result.error(500, "包裹档案修改失败");
+        return updated ? Result.ok() : Result.error(500, "包裹档案修改失败");
     }
 
     @Operation(summary = "精确定位：通过条码查询包裹详情")
@@ -74,5 +78,39 @@ public class WmsParcelController {
 
         Page<WmsParcel> resultPage = parcelService.page(pageParam, queryWrapper);
         return Result.ok(resultPage);
+    }
+
+    @Operation(summary = "业务流程：包裹确认入库落位")
+    @PostMapping("/inbound")
+    public Result<?> inbound(@RequestBody @Valid ParcelInboundDTO dto) { // <-- 核心变化：使用DTO并开启校验
+        try {
+            // 从 DTO 中干净地抽取参数传递给 Service
+            boolean success = parcelService.inbound(dto.getBarcode(), dto.getTargetSlotId());
+            return success ? Result.ok("包裹入库落位成功") : Result.error(500, "入库失败");
+        } catch (RuntimeException e) {
+            return Result.error(400, e.getMessage());
+        }
+    }
+
+    @Operation(summary = "业务流程：包裹移库（换货位）")
+    @PostMapping("/move")
+    public Result<?> moveSlot(@RequestBody @Valid ParcelMoveDTO dto) { // <-- 核心变化
+        try {
+            boolean success = parcelService.moveSlot(dto.getBarcode(), dto.getDestSlotId());
+            return success ? Result.ok("库内移位调度成功") : Result.error(500, "移库失败");
+        } catch (RuntimeException e) {
+            return Result.error(400, e.getMessage());
+        }
+    }
+
+    @Operation(summary = "业务流程：包裹下架确认出库")
+    @PostMapping("/outbound")
+    public Result<?> outbound(@RequestBody @Valid ParcelOutboundDTO dto) {
+        try {
+            boolean success = parcelService.outbound(dto.getBarcode());
+            return success ? Result.ok("包裹出库下架成功") : Result.error(500, "出库失败");
+        } catch (RuntimeException e) {
+            return Result.error(400, e.getMessage());
+        }
     }
 }
