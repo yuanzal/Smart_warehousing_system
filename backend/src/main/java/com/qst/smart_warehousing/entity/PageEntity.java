@@ -60,11 +60,11 @@ public class PageEntity {
      */
     public <T> BPage<T> parse() {
         // 初始化BasePage（当前页、每页条数）
-        BPage<T> page = new BPage<>(getPage(), getLimit());
+        BPage<T> bPage = new BPage<>(getPage(), getLimit());
 
         // 不分页时，设置超大每页条数（默认10000条）
         if (Objects.equals(0, pageType)) {
-            page.setSize(10000);
+            bPage.setSize(10000);
         }
 
         // 构建排序条件：先添加fieldName/sortingType的排序，再添加orders的排序
@@ -83,7 +83,7 @@ public class PageEntity {
         // 追加orders字段中的排序条件
         orders2.addAll(orders);
 
-        return page;
+        return bPage;
     }
 
 
