@@ -31,3 +31,22 @@ build/
 
 ### VS Code ###
 .vscode/
+# IDE template configurations
+.idea/
+*.iml
+*.iws
+
+# Build and temporary files
+target/
+**/target/
+.mvn/
+mvnw
+mvnw.cmd
+
+# Node dependencies
+node_modules/
+npm-debug.log*
+
+# OS file systems
+.DS_Store
+Thumbs.db
