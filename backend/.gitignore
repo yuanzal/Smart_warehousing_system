@@ -1,0 +1,74 @@
+<<<<<<< HEAD
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+### IntelliJ IDEA ###
+.idea/modules.xml
+.idea/jarRepositories.xml
+.idea/compiler.xml
+.idea/libraries/
+*.iws
+*.iml
+*.ipr
+
+### Eclipse ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### VS Code ###
+.vscode/
+
+### Mac OS ###
+.DS_Store
+=======
+# Compiled class file
+*.class
+
+# Log file
+*.log
+
+# BlueJ files
+*.ctxt
+
+# Mobile Tools for Java (J2ME)
+.mtj.tmp/
+
+# Package Files #
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
+hs_err_pid*
+>>>>>>> ea1ec2e18fa2406735176413e8f3f6f1783fa861
+# Spring配置文件（本地真实配置忽略）
+application*.yml
+# 保留模板给团队参考
+!application-template.yml
+.idea/workspace.xml   # 个人窗口布局、打开的文件，完全私有
+.idea/tasks.xml       # 本地任务记录
+.idea/shelf/          # 本地搁置的代码
+.idea/misc.xml        # Maven/Gradle 项目可忽略
+.idea/libraries/      # 构建工具自动生成的库配置
+*.iml                 # 模块描述文件，构建工具自动生成
