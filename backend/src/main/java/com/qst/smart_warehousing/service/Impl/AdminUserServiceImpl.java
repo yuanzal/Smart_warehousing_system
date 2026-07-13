@@ -85,8 +85,7 @@ public class AdminUserServiceImpl extends ServiceImpl<AdminUserMapper, AdminUser
             redisClient.delete(token);
         }catch (Exception e){
             logger.info("注销失败",e.getMessage());
-        }finally {
-            return Result.ok();
         }
+        return Result.ok();
     }
 }
