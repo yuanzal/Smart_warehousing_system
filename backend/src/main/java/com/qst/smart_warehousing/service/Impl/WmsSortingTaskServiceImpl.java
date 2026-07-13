@@ -13,7 +13,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 
 import java.math.BigDecimal;
@@ -27,6 +26,9 @@ public class WmsSortingTaskServiceImpl extends ServiceImpl<WmsSortingTaskMapper,
     private WmsStorageSlotMapper storageSlotMapper;
     @Resource private WmsAgvDeviceMapper agvDeviceMapper;
     @Resource private WmsInventoryLogMapper inventoryLogMapper;
+
+    @Autowired
+    private WmsSortingTaskMapper sortingTaskMapper;
 
     /**
      * 核心 Story 1.1 & 1.2：创建分拣任务并智能指派 AGV 和目标货位
@@ -130,12 +132,6 @@ public class WmsSortingTaskServiceImpl extends ServiceImpl<WmsSortingTaskMapper,
         inventoryLogMapper.insert(log);
     }
 
-    @Autowired
-    private WmsSortingTaskMapper sortingTaskMapper;
-
-    @Autowired
-    private ObjectMapper objectMapper;
-
     @Override
     @Transactional
     public boolean calculateRouteAndBalance(Long taskId, Integer projectId, Integer tenantId) {
@@ -160,35 +156,64 @@ public class WmsSortingTaskServiceImpl extends ServiceImpl<WmsSortingTaskMapper,
             return false;
         }
 
-        // 4. 【AGV 空间路径规划算法（基于曼哈顿距离的拓扑路径模拟）】
-        // TODO: A*算法实现
-        // 模拟从小车当前坐标 (agv.getCurrentX, agv.getCurrentY) 到货位坐标 (slot.getXCoordinate, slot.getYCoordinate)
-        List<Map<String, Double>> pathNodes = new ArrayList<>();
+        // 4. 基于 A* 算法与动态路网的物理路径规划
+        // ====================================================================
 
-        double startX = agv.getCurrentX().doubleValue();
-        double startY = agv.getCurrentY().doubleValue();
-        double endX = slot.getXCoordinate().doubleValue();
-        double endY = slot.getYCoordinate().doubleValue();
+        // 4.1 初始化一个 20x20 的虚拟仓储数字网格矩阵（工业上会从地图配置文件加载）
+        // 0 代表通道可通行，1 代表障碍物（固定货架区、设备区）
+        int[][] warehouseMap = new int[20][20];
 
-        // 模拟生成中途的拐点（拓扑节点规划）
-        Map<String, Double> node1 = new HashMap<>();
-        node1.put("x", startX);
-        node1.put("y", startY);
-        pathNodes.add(node1);
+        // 预设固定货架障碍物位置（模拟第 4 行到第 15 行的某些格子是货架，小车不能穿过去）
+        for (int i = 4; i <= 15; i++) {
+            warehouseMap[i][5] = 1;
+            warehouseMap[i][10] = 1;
+        }
 
-        Map<String, Double> node2 = new HashMap<>();
-        node2.put("x", endX); // 先横向移动
-        node2.put("y", startY);
-        pathNodes.add(node2);
+        // 4.2 💡 动态负载均衡与安全联动：从数据库读取当前正处于故障维修(status=3)的货位
+        // 动态将其加入地图障碍物，防止 AGV 走这条通道或者撞向维修区
+        List<WmsStorageSlot> defectSlots = storageSlotMapper.selectList(
+                new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<WmsStorageSlot>()
+                        .eq("status", 3)
+        );
+        for (WmsStorageSlot defect : defectSlots) {
+            // 将浮点坐标强转/映射为网格索引
+            int obsX = (int) Math.round(defect.getXCoordinate().doubleValue());
+            int obsY = (int) Math.round(defect.getYCoordinate().doubleValue());
+            if (obsX >= 0 && obsX < 20 && obsY >= 0 && obsY < 20) {
+                warehouseMap[obsX][obsY] = 1; // 标记为动态碰撞体积
+            }
+        }
 
-        Map<String, Double> node3 = new HashMap<>();
-        node3.put("x", endX); // 再纵向移动到达目标
-        node3.put("y", endY);
-        pathNodes.add(node3);
+        // 4.3 坐标对齐转换：将 AGV 当前的实数米制坐标，映射为网格的整数坐标点
+        int startGridX = (int) Math.round(agv.getCurrentX().doubleValue());
+        int startGridY = (int) Math.round(agv.getCurrentY().doubleValue());
+        int endGridX = (int) Math.round(slot.getXCoordinate().doubleValue());
+        int endGridY = (int) Math.round(slot.getYCoordinate().doubleValue());
+
+        // 4.4 调用 A* 寻路器算法计算最优拓扑节点
+        List<int[]> calculatedGridPath = AStarPathFinder.findPath(
+                warehouseMap, startGridX, startGridY, endGridX, endGridY
+        );
+
+        if (calculatedGridPath.isEmpty()) {
+            // 算法判定没有安全通路可达，直接触发熔断告警
+            return false;
+        }
+
+        // 4.5 将算法计算出的网格坐标转换为大屏能识别的 3D 物理空间坐标 JSON 串
+        List<Map<String, Double>> realPathNodes = new ArrayList<>();
+        for (int[] gridPoint : calculatedGridPath) {
+            Map<String, Double> point = new HashMap<>();
+            point.put("x", (double) gridPoint[0]);
+            point.put("y", (double) gridPoint[1]);
+            realPathNodes.add(point);
+        }
 
         try {
-            // 将路径序列化为 JSON 字符串
-            String routeJson = objectMapper.writeValueAsString(pathNodes);
+            // 将真实计算出来的多维拐点序列化
+            String routeJson = com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler.getObjectMapper()
+                    .writeValueAsString(realPathNodes);
+
             agv.setRoutePathJson(routeJson);
 
             // 路径计算完毕后，更新小车路径，同时将任务状态推至状态机阶段 2（路由计算完毕）
@@ -202,5 +227,57 @@ public class WmsSortingTaskServiceImpl extends ServiceImpl<WmsSortingTaskMapper,
             e.printStackTrace();
             return false;
         }
+    }
+
+    @Override
+    @Transactional
+    public boolean updateAgvLocation(Long agvId, Double currentX, Double currentY, Integer batteryLevel) {
+        WmsAgvDevice agv = agvDeviceMapper.selectById(agvId);
+        if (agv == null) {
+            return false;
+        }
+
+        // 动态更新小车的物理坐标和电量
+        agv.setCurrentX(java.math.BigDecimal.valueOf(currentX));
+        agv.setCurrentY(java.math.BigDecimal.valueOf(currentY));
+        agv.setBatteryLevel(batteryLevel);
+
+        // TODO：【工业拓展】如果在实际高吞吐业务中，此处还会通过 WebSocket 或 Redis Pub/Sub 将坐标秒级推给前端 3D 数字孪生大屏
+        return agvDeviceMapper.updateById(agv) > 0;
+    }
+
+    /**
+     * 2. 分拣任务设备执行回调与防灾拦截
+     */
+    @Override
+    @Transactional
+    public boolean handleTaskCallback(Long taskId, Long agvId, Integer statusCallback, String errorMessage) {
+        WmsSortingTask task = sortingTaskMapper.selectById(taskId);
+        WmsAgvDevice agv = agvDeviceMapper.selectById(agvId);
+
+        if (task == null || agv == null) {
+            return false;
+        }
+
+        // 判断回调状态
+        if (statusCallback == 4 || statusCallback == 5) {
+            // 🚨 触发物理异常拦截：小车在中途发生碰撞或卡死
+            agv.setStatus(4); // 小车变更为：故障/维修状态
+            agvDeviceMapper.updateById(agv);
+
+            // 任务单挂起，等待人工介入核验
+            task.setStatus(5); // 任务状态变更为：物理异常挂起
+            sortingTaskMapper.updateById(task);
+
+            System.err.println("【WMS调度中台熔断警告】AGV " + agvId + " 触发异常回调，原因: " + errorMessage);
+            return true;
+        } else if (statusCallback == 3) {
+            // 🟢 正常转运回调：仅更新状态
+            task.setStatus(3); // 转运中
+            sortingTaskMapper.updateById(task);
+            return true;
+        }
+
+        return false;
     }
 }

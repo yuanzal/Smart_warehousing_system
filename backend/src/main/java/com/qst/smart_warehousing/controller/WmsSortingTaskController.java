@@ -31,7 +31,7 @@ public class WmsSortingTaskController {
     @PostMapping("/complete/{taskId}")
     public ResponseEntity<?> completeTask(
             @PathVariable("taskId") Long taskId,
-            @RequestParam("operatorId") Long operatorId){
+            @RequestParam("operatorId") Long operatorId) {
         sortingTaskService.completeSortingTask(taskId, operatorId);
         return ResponseEntity.ok("落位数据链同步圆满成功，库存流水已生成！");
     }
@@ -58,5 +58,49 @@ public class WmsSortingTaskController {
             response.put("message", "调度算法优化失败，请检查仓储物理设备状态。");
             return ResponseEntity.status(500).body(response);
         }
+    }
+
+    /**
+     * 🚀 Story 3 接口一：AGV 实时位置与电量上报（高频接口）
+     */
+    // TODO：可扩展MQ
+    @PostMapping("/agv/report-location")
+    public ResponseEntity<?> reportAgvLocation(
+            @RequestParam("agvId") Long agvId,
+            @RequestParam("currentX") Double currentX,
+            @RequestParam("currentY") Double currentY,
+            @RequestParam("batteryLevel") Integer batteryLevel) {
+
+        boolean success = sortingTaskService.updateAgvLocation(agvId, currentX, currentY, batteryLevel);
+
+        Map<String, Object> response = new HashMap<>();
+        if (success) {
+            response.put("code", "200");
+            response.put("message", "AGV 物理坐标及状态上报成功");
+            return ResponseEntity.ok(response);
+        }
+        return ResponseEntity.status(500).body("AGV 设备信息不存在或上报失败");
+    }
+
+    /**
+     * 🚀 Story 3 接口二：分拣任务执行状态回调（如 AGV 异常卡死、阻挡、中途断电告警）
+     * status: 3-转运中, 4-发生碰撞阻挡, 5-物理异常卡死
+     */
+    @PostMapping("/callback/status")
+    public ResponseEntity<?> taskStatusCallback(
+            @RequestParam("taskId") Long taskId,
+            @RequestParam("agvId") Long agvId,
+            @RequestParam("statusCallback") Integer statusCallback,
+            @RequestParam(value = "errorMessage", required = false) String errorMessage) {
+
+        boolean success = sortingTaskService.handleTaskCallback(taskId, agvId, statusCallback, errorMessage);
+
+        Map<String, Object> response = new HashMap<>();
+        if (success) {
+            response.put("code", "200");
+            response.put("message", "任务状态回调处理成功，已触发中台预警机制");
+            return ResponseEntity.ok(response);
+        }
+        return ResponseEntity.status(500).body("回调异常，任务单或小车状态不匹配");
     }
 }
