@@ -7,7 +7,7 @@ import 'element-plus/dist/index.css'
 import { removeAuth } from '@/utils/auth' // 保留原 auth 工具
 import qs from 'qs' // 保留原 qs 序列化
 import { debounce } from 'throttle-debounce' // 保留原防抖工具
-import router from '../router' // Vue3 路由实例（配置方式与 Vue2 不同，下文附路由配置）
+import router from '../router/index.js' // Vue3 路由实例（配置方式与 Vue2 不同，下文附路由配置）
 
 // 2. 防抖函数：清除缓存并刷新（逻辑不变，仅调整 Element 提示）
 const clearCacheEnterLogin = debounce(500, async () => {
@@ -52,7 +52,7 @@ axios.defaults.headers.post['Content-Type'] = 'application/x-www-form-urlencoded
 
 // 6. 创建 Axios 实例（逻辑不变）
 const service = axios.create({
-  baseURL: `http://${import.meta.env.VITE_APP_Address}`, // Vue3 Vite 环境变量（替代 Vue2 的 process.env）
+  baseURL: `${import.meta.env.VITE_APP_Address}`, // Vue3 Vite 环境变量（替代 Vue2 的 process.env）
   timeout: 600000 // 请求超时时间（与原一致）
 })
 
