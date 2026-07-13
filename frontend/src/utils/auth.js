@@ -1,5 +1,5 @@
 import axios from 'axios'
-import cache from './cache'
+import cache from './cache.js'
 import * as Lockr from 'lockr'
 import store from '@/store'
 

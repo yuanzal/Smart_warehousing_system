@@ -161,6 +161,7 @@ public class WmsSortingTaskServiceImpl extends ServiceImpl<WmsSortingTaskMapper,
         }
 
         // 4. 【AGV 空间路径规划算法（基于曼哈顿距离的拓扑路径模拟）】
+        // TODO: A*算法实现
         // 模拟从小车当前坐标 (agv.getCurrentX, agv.getCurrentY) 到货位坐标 (slot.getXCoordinate, slot.getYCoordinate)
         List<Map<String, Double>> pathNodes = new ArrayList<>();
 
