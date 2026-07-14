@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+// TODO:这是模拟路线，实际回调接口已经存在于WmsSortingTaskController，后面使用设备回调展示路线
 @RestController
 @RequestMapping("/api/agv")
 public class AgvController {

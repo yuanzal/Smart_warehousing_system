@@ -60,6 +60,7 @@ public class WmsStorageSlot implements Serializable {
     @Schema(title = "租户ID")
     private Integer tenantId;
 
+    // TODO: 前端展示缺少字段，此处新增非持久化字段，后面删除此字段，封装DTO使用联表查询
 
     // ===== 新增非数据库字段（仅供前端展示，不持久化） =====
     @Schema(title = "当前载重(kg)")
