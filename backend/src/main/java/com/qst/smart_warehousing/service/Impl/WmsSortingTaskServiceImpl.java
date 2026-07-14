@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.qst.smart_warehousing.DTO.CreateSortingTaskDTO;
 import com.qst.smart_warehousing.entity.*;
 import com.qst.smart_warehousing.mapper.*;
+import com.qst.smart_warehousing.service.IWmsAlertService;
 import com.qst.smart_warehousing.service.IWmsSortingTaskService;
 import jakarta.annotation.Resource;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,6 +27,9 @@ public class WmsSortingTaskServiceImpl extends ServiceImpl<WmsSortingTaskMapper,
     private WmsStorageSlotMapper storageSlotMapper;
     @Resource private WmsAgvDeviceMapper agvDeviceMapper;
     @Resource private WmsInventoryLogMapper inventoryLogMapper;
+
+    @Resource
+    private IWmsAlertService alertService;
 
     @Autowired
     private WmsSortingTaskMapper sortingTaskMapper;
@@ -268,6 +272,9 @@ public class WmsSortingTaskServiceImpl extends ServiceImpl<WmsSortingTaskMapper,
             // 任务单挂起，等待人工介入核验
             task.setStatus(5); // 任务状态变更为：物理异常挂起
             sortingTaskMapper.updateById(task);
+
+            // 💡 核心联动：自动往运营告警看板里记一笔严重设备故障！
+            alertService.triggerSortingExceptionAlert(taskId, agvId, errorMessage);
 
             System.err.println("【WMS调度中台熔断警告】AGV " + agvId + " 触发异常回调，原因: " + errorMessage);
             return true;
