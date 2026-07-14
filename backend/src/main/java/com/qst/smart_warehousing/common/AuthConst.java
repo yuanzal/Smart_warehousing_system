@@ -15,8 +15,10 @@ public class AuthConst {
             "/logout",         // 登出接口
             "/relogin",        // 重新登录接口
             "/captcha",        // 验证码接口（如果有）
+            "/api/**",
             "/api/public/**",   // 其他公开接口（支持通配符）
             "/ai_image/**", //  ai图片接口
+            "/actuator/**",
             // Swagger3 / Springdoc OpenAPI 标准放行路径
             "/swagger-ui/**",          // Swagger UI 网页资源
             "/v3/api-docs/**",         // OpenAPI 3.0 接口描述数据 JSON

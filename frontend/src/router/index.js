@@ -4,6 +4,8 @@ import store from '@/store'
 
 // 导入组件（可以根据实际项目结构调整）
 import Login from '../views/Login.vue'
+// ===== 新增：导入 Dashboard 组件 =====
+import Dashboard from '@/views/Dashboard.vue'
 
 // 定义路由规则
 const routes = [
@@ -16,6 +18,13 @@ const routes = [
     name: 'Login',
     component: Login,
     meta: { requiresAuth: false }
+  },
+  // ===== 新增：3D 仓库数字孪生页面 =====
+  {
+    path: '/dashboard',
+    name: 'Dashboard',
+    component: Dashboard,
+    meta: { requiresAuth: false }  // 开发阶段无需登录，后续可改为 true
   },
   {
     path: '/:pathMatch(.*)*',

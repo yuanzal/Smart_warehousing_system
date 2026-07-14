@@ -2,8 +2,8 @@
   <div class="login-container">
     <div class="login-box">
       <div class="login-header">
-        <h2>智慧农业温室大棚全自动化管控平台</h2>
-        <p>Smart Agriculture Greenhouse Fully Automated Management Platform</p>
+        <h2>智慧物流仓储与分拣AI调度系统</h2>
+        <p>Smart logistics warehousing and sorting AI scheduling system</p>
       </div>
 
       <el-form
