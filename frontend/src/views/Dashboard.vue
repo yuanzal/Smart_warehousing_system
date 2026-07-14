@@ -1,7 +1,6 @@
 <template>
   <div class="dashboard">
     <ThreeScene ref="threeSceneRef" />
-    <!-- 控制面板 -->
     <div class="controls">
       <div class="floor-btns">
         <button v-for="f in [1,2,3]" :key="f" @click="switchFloor(f)">楼层 {{ f }}</button>
@@ -19,15 +18,12 @@
 import { ref } from 'vue'
 import ThreeScene from '@/components/ThreeScene.vue'
 
-// 获取 ThreeScene 组件实例
 const threeSceneRef = ref(null)
 
-// 切换楼层
 const switchFloor = (floor) => {
   threeSceneRef.value?.switchFloor(floor)
 }
 
-// 切换视角
 const flyToView = (view) => {
   threeSceneRef.value?.flyToView(view)
 }
@@ -48,7 +44,7 @@ const flyToView = (view) => {
   gap: 10px;
   flex-wrap: wrap;
   z-index: 10;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0,0,0,0.6);
   padding: 10px 15px;
   border-radius: 8px;
 }
