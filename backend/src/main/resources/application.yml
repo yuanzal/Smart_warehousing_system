@@ -17,6 +17,12 @@ spring:
     redis:
       host: localhost
       port: 6379
+      lettuce:
+          shutdown-timeout: 100ms
+          pool:
+            max-active: 100
+            max-wait: 50ms
+      timeout: 200ms
 #  jackson:
 #    default-property-inclusion: non_null  # 序列化时排除所有 null 字段
 
