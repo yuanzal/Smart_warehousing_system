@@ -2,6 +2,7 @@ package com.qst.smart_warehousing.entity;
 
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -58,4 +59,18 @@ public class WmsStorageSlot implements Serializable {
 
     @Schema(title = "租户ID")
     private Integer tenantId;
+
+
+    // ===== 新增非数据库字段（仅供前端展示，不持久化） =====
+    @Schema(title = "当前载重(kg)")
+    @TableField(exist = false)
+    private BigDecimal currentWeight;
+
+    @Schema(title = "当前存放包裹编号")
+    @TableField(exist = false)
+    private String parcelCode;
+
+    @Schema(title = "楼层编号（1、2、3）")
+    @TableField(exist = false)
+    private Integer floor;
 }
