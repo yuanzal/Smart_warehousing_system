@@ -8,21 +8,26 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
-      // 添加这一行，让Vue使用包含编译器的版本
       'vue': 'vue/dist/vue.esm-bundler.js'
     }
   },
   build: {
-    sourcemap: false, // 禁用生产环境的sourcemap生成
+    sourcemap: false,
   },
   server: {
+    // ===== 新增代理配置 =====
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        secure: false,
+      }
+    },
     fs: {
-      // 允许访问项目根目录外的文件
       allow: ['..']
     }
   },
   optimizeDeps: {
-    // 排除flv.min.js从依赖优化，避免sourcemap错误
     exclude: ['flvjs']
   }
 })
