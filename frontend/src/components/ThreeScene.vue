@@ -9,7 +9,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 // ===== 新增：CSS2DRenderer 用于文本标签 =====
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js'
 // ===== 新增：TWEEN 用于视角动画 =====
-import * as TWEEN from '@tweenjs/tween.js'
+import TWEEN from 'three/addons/libs/tween.module.js'
 import axios from 'axios'
 
 const container = ref(null)
