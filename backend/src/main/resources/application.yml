@@ -1,54 +1,56 @@
 spring:
   application:
-    name: smart_warehousing
+    name: smart_warehousing  # 服务名
   datasource:
-    url: jdbc:mysql://127.0.0.1:3306/db_build_safe?characterEncoding=utf8&useSSL=false&zeroDateTimeBehavior=convertToNull&tinyInt1isBit=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://127.0.0.1:3306/db_build_safe?characterEncoding=utf8&useSSL=false&zeroDateTimeBehavior=convertToNull&tinyInt1isBit=false&serverTimezone=Asia/Shanghai
     username: root
     password: root
   jackson:
+    # 全局日期反序列化格式（前端传参格式）
     date-format: yyyy-MM-dd HH:mm:ss
+    # 时区配置（避免时区偏移导致日期错误）
     time-zone: GMT+8
     serialization:
-      write-dates-as-timestamps: false
+      # 可选：全局日期序列化格式（后端返回给前端的格式，可与反序列化格式一致）
+      write-dates-as-timestamps: false  # 关闭时间戳，使用指定的字符串格式
   data:
     redis:
       host: localhost
       port: 6379
+      lettuce:
+          shutdown-timeout: 100ms
+          pool:
+            max-active: 100
+            max-wait: 50ms
+      timeout: 200ms
+#  jackson:
+#    default-property-inclusion: non_null  # 序列化时排除所有 null 字段
 
+# 端口配置
 server:
   port: 8080
-
 mybatis-plus:
+  # 配置实体类所在包（多个包用逗号分隔）
   type-aliases-package: com.qst.smart_warehousing.entity
   configuration:
+    # 开启日志输出
+    #    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl  # 控制台打印日志
+    # 可选：开启驼峰命名映射（默认开启）
     map-underscore-to-camel-case: true
-
 device:
   tcp:
     port: 8888
-
 camera:
   ai:
     baseUrl: http://localhost:5000/detect
   live:
     baseUrl: http://localhost:8068/hls/
-
 tower:
   ai:
     baseUrl: http://localhost:5000/crane_safety
 
-# ===== 日志配置（开启 DEBUG 定位 401） =====
 logging:
   level:
     com.qst.smart_warehousing: DEBUG
     org.springframework.security: DEBUG
     org.springframework.security.authentication: DEBUG
-    org.springframework.security.web: DEBUG
-
-# ===== 视频推流配置 =====
-video:
-  ffmpeg-path: C:/ffmpeg/ffmpeg-8.1.2-essentials_build/bin/ffmpeg.exe
-  rtmp-server: rtmp://localhost:1935/live/
-  hls-base-url: http://localhost:8081/hls/
-  hls-dir: C:/nginx-rtmp/html/hls/
-  hls-fragment-seconds: 6

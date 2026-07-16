@@ -1,64 +1,94 @@
 package com.qst.smart_warehousing.service.Impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.qst.smart_warehousing.DTO.CreateSortingTaskDTO;
+import com.qst.smart_warehousing.DTO.WmsAgvRealtimeLocDTO;
 import com.qst.smart_warehousing.entity.*;
 import com.qst.smart_warehousing.mapper.*;
+import com.qst.smart_warehousing.service.IWmsAlertService;
 import com.qst.smart_warehousing.service.IWmsSortingTaskService;
 import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
-
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-
+@Slf4j
 @Service
 public class WmsSortingTaskServiceImpl extends ServiceImpl<WmsSortingTaskMapper, WmsSortingTask> implements IWmsSortingTaskService {
 
     @Resource private WmsParcelMapper parcelMapper;
-    @Resource
-    private WmsStorageSlotMapper storageSlotMapper;
+    @Resource private WmsStorageSlotMapper storageSlotMapper;
     @Resource private WmsAgvDeviceMapper agvDeviceMapper;
     @Resource private WmsInventoryLogMapper inventoryLogMapper;
+    @Resource private IWmsAlertService alertService;
+    @Autowired private WmsSortingTaskMapper sortingTaskMapper;
 
-    @Autowired
-    private WmsSortingTaskMapper sortingTaskMapper;
+    // 💡 导入 Redis 常量
+    private static final String AGV_REALTIME_KEY = "wms:agv:realtime";
+
+    @Resource
+    private StringRedisTemplate stringRedisTemplate;
+
+    @Resource
+    private ObjectMapper objectMapper;
+
+    // 工业级设计：创建专用于异步持久化 MySQL 的隔离线程池，防止 IoT 高频写 I/O 阻塞系统公共线程
+    private final ExecutorService dbWriteExecutor = new ThreadPoolExecutor(
+            4, // 核心线程数
+            8, // 最大线程数
+            60L, TimeUnit.SECONDS,
+            new LinkedBlockingQueue<>(2000), // 缓冲队列，可承受突发的高频心跳堆积
+            new ThreadFactory() {
+                private final AtomicInteger counter = new AtomicInteger(1);
+                @Override
+                public Thread newThread(Runnable r) {
+                    Thread thread = new Thread(r, "agv-async-db-writer-" + counter.getAndIncrement());
+                    thread.setDaemon(true); // 守护线程，随主 JVM 退出
+                    return thread;
+                }
+            },
+            new ThreadPoolExecutor.DiscardOldestPolicy() // 防御策略：万一队列满了，丢弃最老的位置上报任务，确保系统不 OOM
+    );
 
     /**
      * 核心 Story 1.1 & 1.2：创建分拣任务并智能指派 AGV 和目标货位
      */
     @Transactional(rollbackFor = Exception.class)
     public WmsSortingTask createAndAssignTask(CreateSortingTaskDTO dto) {
-        // 1. 校验包裹状态 (必须是安全进线或AI核验完毕)
+        // 1. 校验包裹状态
         WmsParcel parcel = parcelMapper.selectById(dto.getParcelId());
         if (parcel == null) {
             throw new RuntimeException("系统异常：未找到对应的包裹档案！");
         }
 
         // 2. 中台算法模拟：动态寻找当前项目/租户下最适宜的 [待命空闲] AGV 小车
-        // 对应 SQL 约束：status = 1 (待命空闲)
         WmsAgvDevice idleAgv = agvDeviceMapper.selectFirstIdle(dto.getProjectId(), dto.getTenantId());
         if (idleAgv == null) {
             throw new RuntimeException("调度中台提示：当前库区无可用空闲AGV，任务进入排队队列");
         }
 
         // 3. 中台算法模拟：动态寻找当前库区 [空闲] 的推荐目标货位
-        // 对应 SQL 约束：status = 0 (空闲)
         WmsStorageSlot targetSlot = storageSlotMapper.selectFirstEmptySlot(dto.getProjectId(), dto.getTenantId());
         if (targetSlot == null) {
             throw new RuntimeException("调度中台提示：全库已爆仓，无可用空闲货位分配！");
         }
 
-        // 4. 构建并落库分拣任务单 (wms_sorting_task)
+        // 4. 构建并落库分拣任务单
         WmsSortingTask task = new WmsSortingTask();
-        task.setTaskCode("TASK" + System.currentTimeMillis()); // 生产单号生成
-        task.setParcelId(parcel.getParcelId());  // 🔥 绑定 parcel_id
+        task.setTaskCode("TASK" + System.currentTimeMillis());
+        task.setParcelId(parcel.getParcelId());
         task.setBarcode(dto.getBarcode());
         task.setSourceStationId(dto.getSourceStationId());
         task.setTargetSlotId(targetSlot.getSlotId());
@@ -80,7 +110,7 @@ public class WmsSortingTaskServiceImpl extends ServiceImpl<WmsSortingTaskMapper,
 
         // 7. 联动变更 AGV 小车状态 -> 配送执行中(2)，并模拟测重赋权
         idleAgv.setStatus(2);
-        idleAgv.setLoadWeight(parcel.getWeight()); // 传感器动态抗载配重
+        idleAgv.setLoadWeight(parcel.getWeight());
         agvDeviceMapper.updateById(idleAgv);
 
         return task;
@@ -104,7 +134,7 @@ public class WmsSortingTaskServiceImpl extends ServiceImpl<WmsSortingTaskMapper,
         // 2. 更新包裹状态 -> 已上架入库(4)，并刷入当前所在货位ID
         WmsParcel parcel = parcelMapper.selectById(task.getParcelId());
         parcel.setStatus(4);
-        parcel.setCurrentSlotId(task.getTargetSlotId()); // 物理捆绑
+        parcel.setCurrentSlotId(task.getTargetSlotId());
         parcelMapper.updateById(parcel);
 
         // 3. 更新货位状态 -> 已占用(1)
@@ -118,17 +148,17 @@ public class WmsSortingTaskServiceImpl extends ServiceImpl<WmsSortingTaskMapper,
         agv.setLoadWeight(BigDecimal.ZERO);
         agvDeviceMapper.updateById(agv);
 
-        // 5. 🔥 核心一步：安全刷入只读流水线历史 (wms_inventory_log)，完美对齐数据库字段
+        // 5. 安全刷入只读流水线历史 (wms_inventory_log)，完美对齐数据库字段
         WmsInventoryLog log = new WmsInventoryLog();
-        log.setParcelId(parcel.getParcelId());       // 强校验字段 1
+        log.setParcelId(parcel.getParcelId());
         log.setBarcode(parcel.getBarcode());
         log.setActionType(1);                       // 1 - 自动入库
-        log.setFromSlotId(null);                     // 入库时源货位为 NULL
-        log.setToSlotId(slot.getSlotId());           // 目标落位货位
-        log.setOperatorId(operatorId);               // 操作人员ID
+        log.setFromSlotId(null);
+        log.setToSlotId(slot.getSlotId());
+        log.setOperatorId(operatorId);
         log.setCreateTime(LocalDateTime.now());
-        log.setProjectId(task.getProjectId());       // 强校验字段 2
-        log.setTenantId(task.getTenantId());         // 强校验字段 3
+        log.setProjectId(task.getProjectId());
+        log.setTenantId(task.getTenantId());
         inventoryLogMapper.insert(log);
     }
 
@@ -149,7 +179,6 @@ public class WmsSortingTaskServiceImpl extends ServiceImpl<WmsSortingTaskMapper,
         }
 
         // 3. 【工位负载均衡与安全策略策略】
-        // 如果小车电量低于20%，虽然是空闲，但需要拦截并触发报警（为Story 3埋下伏笔）
         if (agv.getBatteryLevel() < 20) {
             agv.setStatus(3); // 变更为自主充电状态
             agvDeviceMapper.updateById(agv);
@@ -157,34 +186,28 @@ public class WmsSortingTaskServiceImpl extends ServiceImpl<WmsSortingTaskMapper,
         }
 
         // 4. 基于 A* 算法与动态路网的物理路径规划
-        // ====================================================================
-
-        // 4.1 初始化一个 20x20 的虚拟仓储数字网格矩阵（工业上会从地图配置文件加载）
-        // 0 代表通道可通行，1 代表障碍物（固定货架区、设备区）
         int[][] warehouseMap = new int[20][20];
 
-        // 预设固定货架障碍物位置（模拟第 4 行到第 15 行的某些格子是货架，小车不能穿过去）
+        // 预设固定货架障碍物位置
         for (int i = 4; i <= 15; i++) {
             warehouseMap[i][5] = 1;
             warehouseMap[i][10] = 1;
         }
 
-        // 4.2 💡 动态负载均衡与安全联动：从数据库读取当前正处于故障维修(status=3)的货位
-        // 动态将其加入地图障碍物，防止 AGV 走这条通道或者撞向维修区
+        // 4.2 动态负载均衡与安全联动：从数据库读取当前正处于故障维修(status=3)的货位
         List<WmsStorageSlot> defectSlots = storageSlotMapper.selectList(
                 new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<WmsStorageSlot>()
                         .eq("status", 3)
         );
         for (WmsStorageSlot defect : defectSlots) {
-            // 将浮点坐标强转/映射为网格索引
             int obsX = (int) Math.round(defect.getXCoordinate().doubleValue());
             int obsY = (int) Math.round(defect.getYCoordinate().doubleValue());
             if (obsX >= 0 && obsX < 20 && obsY >= 0 && obsY < 20) {
-                warehouseMap[obsX][obsY] = 1; // 标记为动态碰撞体积
+                warehouseMap[obsX][obsY] = 1;
             }
         }
 
-        // 4.3 坐标对齐转换：将 AGV 当前的实数米制坐标，映射为网格的整数坐标点
+        // 4.3 坐标对齐转换
         int startGridX = (int) Math.round(agv.getCurrentX().doubleValue());
         int startGridY = (int) Math.round(agv.getCurrentY().doubleValue());
         int endGridX = (int) Math.round(slot.getXCoordinate().doubleValue());
@@ -196,7 +219,6 @@ public class WmsSortingTaskServiceImpl extends ServiceImpl<WmsSortingTaskMapper,
         );
 
         if (calculatedGridPath.isEmpty()) {
-            // 算法判定没有安全通路可达，直接触发熔断告警
             return false;
         }
 
@@ -210,13 +232,10 @@ public class WmsSortingTaskServiceImpl extends ServiceImpl<WmsSortingTaskMapper,
         }
 
         try {
-            // 将真实计算出来的多维拐点序列化
             String routeJson = com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler.getObjectMapper()
                     .writeValueAsString(realPathNodes);
 
             agv.setRoutePathJson(routeJson);
-
-            // 路径计算完毕后，更新小车路径，同时将任务状态推至状态机阶段 2（路由计算完毕）
             agvDeviceMapper.updateById(agv);
 
             task.setStatus(2); // 路由计算完毕
@@ -229,20 +248,60 @@ public class WmsSortingTaskServiceImpl extends ServiceImpl<WmsSortingTaskMapper,
         }
     }
 
+    /**
+     * 🌟 重构后的核心方法：AGV 实时位置高频写入 Redis 缓存，并通过独立线程异步回写 MySQL
+     */
     @Override
-    @Transactional
     public boolean updateAgvLocation(Long agvId, Double currentX, Double currentY, Integer batteryLevel) {
-        WmsAgvDevice agv = agvDeviceMapper.selectById(agvId);
-        if (agv == null) {
-            return false;
+        // 1. 组装强类型实时坐标 DTO
+        WmsAgvRealtimeLocDTO loc = new WmsAgvRealtimeLocDTO(
+                agvId, currentX, currentY, batteryLevel, System.currentTimeMillis()
+        );
+
+        boolean redisSuccess = false;
+
+        try {
+            // 2. ⚡ 高性能内存化拦截：秒级写入 Redis Hash (时间复杂度 O(1)，可承受万级 TPS)
+            String jsonStr = objectMapper.writeValueAsString(loc);
+            stringRedisTemplate.opsForHash().put(AGV_REALTIME_KEY, agvId.toString(), jsonStr);
+            redisSuccess = true;
+        } catch (Exception e) {
+            log.error("【Redis缓存写入失败】AGV {} 位置未能写入 Redis，准备执行降级兜底：{}", agvId, e.getMessage());
         }
 
-        // 动态更新小车的物理坐标和电量
-        agv.setCurrentX(java.math.BigDecimal.valueOf(currentX));
-        agv.setCurrentY(java.math.BigDecimal.valueOf(currentY));
-        agv.setBatteryLevel(batteryLevel);
+        // 3. 异步/降级逻辑处理 (Write-Behind)
+        if (redisSuccess) {
+            // 🟢 Redis 写入成功：通过独立线程池【异步】回写 MySQL，彻底消除磁盘 IO 瓶颈，主线程毫秒级秒回！
+            CompletableFuture.runAsync(() -> {
+                try {
+                    syncToDatabase(agvId, currentX, currentY, batteryLevel);
+                } catch (Exception e) {
+                    log.error("【MySQL异步回写异常】AGV {} 数据落库失败: {}", agvId, e.getMessage());
+                }
+            }, dbWriteExecutor);
+            return true;
+        } else {
+            // 容灾退化防线：如果 Redis 挂了，强制降级为【同步】直写 MySQL，确保高可用与数据零丢失！
+            log.warn("【高可用降级】Redis 异常，AGV {} 的位置上报转换为同步写 MySQL 兜底", agvId);
+            return syncToDatabase(agvId, currentX, currentY, batteryLevel);
+        }
+    }
 
-        // TODO：【工业拓展】如果在实际高吞吐业务中，此处还会通过 WebSocket 或 Redis Pub/Sub 将坐标秒级推给前端 3D 数字孪生大屏
+    /**
+     * 辅助持久化逻辑：抽取原有的物理落库操作（带事务隔离）
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public boolean syncToDatabase(Long agvId, Double currentX, Double currentY, Integer batteryLevel) {
+        WmsAgvDevice agv = agvDeviceMapper.selectById(agvId);
+        if (agv == null) {
+            log.warn("【回写警告】数据库中未找到 ID 为 {} 的 AGV 设备档案", agvId);
+            return false;
+        }
+        agv.setCurrentX(BigDecimal.valueOf(currentX));
+        agv.setCurrentY(BigDecimal.valueOf(currentY));
+        agv.setBatteryLevel(batteryLevel);
+        System.out.println(BigDecimal.valueOf(currentX));
+        System.out.println(BigDecimal.valueOf(currentY));
         return agvDeviceMapper.updateById(agv) > 0;
     }
 
@@ -268,6 +327,9 @@ public class WmsSortingTaskServiceImpl extends ServiceImpl<WmsSortingTaskMapper,
             // 任务单挂起，等待人工介入核验
             task.setStatus(5); // 任务状态变更为：物理异常挂起
             sortingTaskMapper.updateById(task);
+
+            // 💡 核心联动：自动往运营告警看板里记一笔严重设备故障！
+            alertService.triggerSortingExceptionAlert(taskId, agvId, errorMessage);
 
             System.err.println("【WMS调度中台熔断警告】AGV " + agvId + " 触发异常回调，原因: " + errorMessage);
             return true;

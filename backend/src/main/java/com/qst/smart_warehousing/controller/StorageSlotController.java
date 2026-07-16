@@ -21,6 +21,7 @@ public class StorageSlotController {
     @GetMapping("/slots")
     public Result<List<WmsStorageSlot>> getAllSlots() {
         List<WmsStorageSlot> slots = slotService.list();
+        // TODO: 前端展示缺少字段，此处用硬编码替代，后面封装DTO使用联表查询
         // ===== 填充模拟扩展数据 =====
         slots.forEach(slot -> {
             // 模拟当前载重（0~300 kg 随机）
