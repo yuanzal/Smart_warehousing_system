@@ -7,7 +7,8 @@ import 'element-plus/dist/index.css'
 import { removeAuth } from '@/utils/auth' // 保留原 auth 工具
 import qs from 'qs' // 保留原 qs 序列化
 import { debounce } from 'throttle-debounce' // 保留原防抖工具
-import router from '../router/index.js' // Vue3 路由实例（配置方式与 Vue2 不同，下文附路由配置）
+import router from '../router/index.js'
+import * as Lockr from "lockr"; // Vue3 路由实例（配置方式与 Vue2 不同，下文附路由配置）
 
 // 2. 防抖函数：清除缓存并刷新（逻辑不变，仅调整 Element 提示）
 const clearCacheEnterLogin = debounce(500, async () => {
@@ -48,38 +49,64 @@ const confirmMessage = debounce(1000, async (message) => {
 })
 
 // 5. 默认请求头配置（逻辑不变）
-axios.defaults.headers.post['Content-Type'] = 'application/x-www-form-urlencoded;charset=UTF-8'
+axios.defaults.headers.post['Content-Type'] = 'application/json;charset=UTF-8'
 
 // 6. 创建 Axios 实例（逻辑不变）
 const service = axios.create({
   baseURL: `${import.meta.env.VITE_APP_Address}`, // Vue3 Vite 环境变量（替代 Vue2 的 process.env）
   timeout: 600000 // 请求超时时间（与原一致）
 })
-
+const lockrToken = Lockr.get('Admin-Token');
+const localToken = window.localStorage.getItem('token');
 // 7. Request 拦截器（逻辑不变，仅优化条件判断写法）
 service.interceptors.request.use(
-  (config) => {
-    // 判断是否为 JSON 类型请求头
-    const isJsonType = config.headers['Content-Type']?.includes('application/json')
-    if (!isJsonType) {
-      // 判断是否为表单上传类型（multipart/form-data）
-      const isFormData = config.headers['Content-Type']?.includes('multipart/form-data')
-      if (!isFormData) {
-        // 非 JSON、非表单上传：用 qs 序列化数据
-        config.data = qs.stringify(config.data)
-      }
-      // 表单上传：直接保留 data（无需序列化）
-    } else {
-      // JSON 类型：处理空数据（避免请求体为 undefined/null）
-      if (config.data === undefined || config.data === null) {
-        config.data = {}
-      }
+    (config) => {
+        // Token提纯逻辑不动
+        const rawToken = Lockr.get('Admin-Token') || window.localStorage.getItem('token')
+        let token = null
+        if (rawToken) {
+            if (typeof rawToken === 'object' && rawToken.adminToken) {
+                token = rawToken.adminToken
+            } else if (typeof rawToken === 'string' && rawToken.startsWith('{')) {
+                try {
+                    const parsed = JSON.parse(rawToken)
+                    token = parsed.adminToken || rawToken
+                } catch (e) {
+                    token = rawToken
+                }
+            } else {
+                token = rawToken
+            }
+        }
+        if (token) {
+            config.headers['Admin-Token'] = token
+        } else {
+            console.warn('【拦截器调试】未获取到有效 Token')
+        }
+        const method = config.method?.toLowerCase()
+        if (['post','put','patch'].includes(method)) {
+            config.headers['Content-Type'] = 'application/json;charset=UTF-8'
+        }
+        // ========== 修复后的格式处理 ==========
+        const contentType = config.headers['Content-Type'] ?? ''
+        const isJson = contentType.includes('application/json')
+        const isFormData = contentType.includes('multipart/form-data')
+
+        // JSON请求：不序列化，直接传对象
+        if (isJson) {
+            if (config.data === undefined || config.data === null) {
+                config.data = {}
+            }
+        } else if (!isFormData && config.data) {
+            // 仅普通表单场景序列化
+            config.data = qs.stringify(config.data)
+        }
+
+        return config
+    },
+    (error) => {
+        return Promise.reject(error)
     }
-    return config
-  },
-  (error) => {
-    return Promise.reject(error)
-  }
 )
 
 // 8. Response 拦截器（逻辑不变，仅替换 Element 组件）

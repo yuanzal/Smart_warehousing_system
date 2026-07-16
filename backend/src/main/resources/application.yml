@@ -54,3 +54,4 @@ logging:
     com.qst.smart_warehousing: DEBUG
     org.springframework.security: DEBUG
     org.springframework.security.authentication: DEBUG
+    com.qst.smart_warehousing.mapper: DEBUG

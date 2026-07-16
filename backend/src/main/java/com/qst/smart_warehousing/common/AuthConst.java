@@ -25,7 +25,9 @@ public class AuthConst {
             "/swagger-ui.html",        // 旧版兼容入口
             "/swagger-resources/**",   // Swagger 资源配置
             "/webjars/**",             // 网页依赖的静态 jar 包资源
+            // 额外放行
             "/wms/sorting-task/agv/report-location",    // 内网安全高频上传接口，直接放行
             "/wms/sorting-task/callback/status",
+            "/error"
     };
 }

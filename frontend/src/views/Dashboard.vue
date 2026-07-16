@@ -31,7 +31,8 @@
                     <span>智能分拣调度台</span>
                 </el-menu-item>
                 <el-menu-item index="users">
-                    <span class="menu-emoji">👥</span>
+                    <span class="menu-emoji">👥
+                    </span>
                     <span>系统用户管理</span>
                 </el-menu-item>
             </el-menu>
@@ -62,7 +63,7 @@
             </el-header>
 
             <el-main class="layout-main">
-                <div v-if="activeMenu === 'dashboard'" class="dashboard-scene-wrapper">
+                <div v-if="activeMenu === 'dashboard'" key="module-dashboard" class="dashboard-scene-wrapper">
                     <div class="scene-overlay-card">
                         <h3>🛸 智能仓库 3D 数字孪生大屏</h3>
                         <p>集成多源传感器与AGV实时定位上报。当前坐标跟踪就绪。</p>
@@ -70,7 +71,11 @@
                     <ThreeScene class="three-viewport" />
                 </div>
 
-                <div v-else class="placeholder-module">
+                <div v-else-if="activeMenu === 'users'" key="module-users">
+                    <UserManagement />
+                </div>
+
+                <div v-else class="placeholder-module" key="module-placeholder">
                     <el-card class="placeholder-card">
                         <h2>🛠️ {{ menuTitles[activeMenu] }} 正在加载</h2>
                         <p>该功能页面（属于 Feature 2.1 Story 2/3 及 Feature 2.3）正在敏捷开发中...</p>
@@ -83,6 +88,7 @@
 </template>
 
 <script setup>
+import UserManagement from './UserManagement.vue'
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { removeAuth } from '@/utils/auth' // 引入原退出清除逻辑
@@ -109,21 +115,20 @@ const handleMenuSelect = (index) => {
 
 const handleCommand = async (command) => {
     if (command === 'logout') {
+        // 第一步：优先清空持久化存储（永久解决残留Token）
+        Lockr.rm('Admin-Token')
+        localStorage.removeItem('token')
+
         try {
-            // 1. 调用原 auth.js 的注销：清空 axios headers 并在 Vuex 中将 token 归 null
+            // 此时就算接口401、mutation报错，缓存已删，不影响跳转
             await removeAuth()
-
-            // 2. 清空 Lockr 和 localStorage
-            Lockr.rm('Admin-Token')
-            delete window.localStorage.token
-
             ElMessage.success('安全登出成功')
-
-            // 3. 强制送回登录页
-            router.push('/login')
         } catch (err) {
-            console.error(err)
-            router.push('/login')
+            console.error('后端注销异常', err)
+            ElMessage.warning('服务端注销失败，本地凭证已清除')
+        } finally {
+            // 强制替换路由，无历史回退
+            router.replace('/login')
         }
     }
 }

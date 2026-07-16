@@ -546,10 +546,15 @@ onBeforeUnmount(() => {
     container.value.removeEventListener('click', onPointerClick)
     container.value.removeEventListener('mousemove', onPointerMove)
   }
-  renderer.dispose()
-  if (labelRenderer) {
-    labelRenderer.dispose()
-  }
+    if (renderer) {
+        renderer.dispose();
+        renderer.domElement?.remove();
+    }
+
+    // 💡 正确清理 CSS2D 渲染器的方法：直接移除它的 DOM 节点即可
+    if (labelRenderer && labelRenderer.domElement) {
+        labelRenderer.domElement.remove();
+    }
 })
 
 

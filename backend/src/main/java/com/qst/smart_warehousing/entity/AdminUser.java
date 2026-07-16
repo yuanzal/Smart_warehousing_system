@@ -42,7 +42,6 @@ public class AdminUser implements Serializable, UserDetails {
     @Schema(title = "真实姓名")
     private String realname;
 
-
     @Schema(title = "手机号")
     private String mobile;
 
@@ -65,6 +64,9 @@ public class AdminUser implements Serializable, UserDetails {
 
     @Schema(title = "最后登录IP")
     private String lastLoginIp;
+
+    @Schema(title = "租户id")
+    private Integer tenantId;
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {

@@ -88,13 +88,27 @@ const handleLogin = async () => {
                     password: loginForm.password
                 })
 
-                // 根据原 request.js 规范，成功响应直接返回业务数据
-                const token = res.data?.token || res.data
+                // 1：根据你的 request.js 拦截器，
+                // res 拿到的是整个业务响应体对象 { code: 0, data: { adminToken, userInfo } }
+                // 所以提取 data 时需要使用 res.data
+                const responseData = res.data
+
+                // 2：后端新版的 Token 字段名是 "adminToken"
+                // 这里做多重兼容提取：优先取 adminToken，其次取 token
+                const token = responseData?.adminToken || responseData?.token || responseData
 
                 if (token) {
-                    // 1. 同步到本地 Lockr 与 window.localStorage（与 login.js 格式完美对齐）
+                    // 1. 同步到本地 Lockr 与 window.localStorage
                     Lockr.set('Admin-Token', token)
                     window.localStorage.token = token
+
+                    // 💡 修正点 3：从 responseData 里提取 userInfo 并安全存入 Lockr
+                    if (responseData?.userInfo) {
+                        Lockr.set('userInfo', responseData.userInfo)
+                        console.log('【登录调试】成功缓存用户信息:', responseData.userInfo)
+                    } else {
+                        console.warn('【登录调试】警告：未在返回数据中找到 userInfo')
+                    }
 
                     // 2. 调用原 auth.js 的 addAuth，将 Admin-Token 注入 Axios header
                     await addAuth(token)

@@ -25,9 +25,10 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-
+// 账户鉴权注销服务
 @Service
 public class AdminUserServiceImpl extends ServiceImpl<AdminUserMapper, AdminUser> implements AdminUserService, UserDetailsService {
     @Override
@@ -56,25 +57,45 @@ public class AdminUserServiceImpl extends ServiceImpl<AdminUserMapper, AdminUser
         Result result = null;
         try {
             // 调用认证管理器进行认证，即调用CustomAuthenticationProvider的authenticate方法进行认证
-            Authentication authentication = authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(user.getUsername().trim(), user.getPassword().trim()));
-            // 认证成功后，从认证对象中获取用户详情，这里的用户详情是AdminUser类型
+            Authentication authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(user.getUsername().trim(), user.getPassword().trim())
+            );
+
+            // 认证成功后，从认证对象中获取用户详情
             AdminUser userInfo = (AdminUser) authentication.getDetails();
-            if (userInfo==null) {
+            if (userInfo == null) {
                 result = Result.error(AuthorizationCodeEnum.AUTHORIZATION_LOGIN_NO_USER);
                 return result;
             }
-            // 认证成功后，将用户信息存储到Redis中，key为用户ID，value为用户信息，过期时间为AuthConst.TOKEN_EXPIRED_TIME秒
-            // 同时，将token也存储到Redis中，key为token，value为用户信息，过期时间也为AuthConst.TOKEN_EXPIRED_TIME秒
+
+            // 认证成功后，生成 token 并存入 Redis 保持会话
             String token = IdUtil.simpleUUID();
-            redisClient.set(AuthConst.USER_TOKEN_HEAD.concat(userInfo.getUserId().toString()),userInfo, AuthConst.TOKEN_EXPIRED_TIME, TimeUnit.SECONDS);
-            redisClient.set(token,userInfo, AuthConst.TOKEN_EXPIRED_TIME, TimeUnit.SECONDS);
-            result =  Result.ok(Map.of("adminToken",token));
+            redisClient.set(AuthConst.USER_TOKEN_HEAD.concat(userInfo.getUserId().toString()), userInfo, AuthConst.TOKEN_EXPIRED_TIME, TimeUnit.SECONDS);
+            redisClient.set(token, userInfo, AuthConst.TOKEN_EXPIRED_TIME, TimeUnit.SECONDS);
+
+            // ==================== 💡 核心修改区域 ====================
+            // 1. 创建一个用于返回给前端的数据 Map
+            Map<String, Object> responseData = new HashMap<>();
+            responseData.put("adminToken", token); // 保留原有的 token 字段，防止影响其他地方
+
+            // 2. 组装一个精简的用户信息对象传给前端
+            Map<String, Object> frontendUserInfo = new HashMap<>();
+            frontendUserInfo.put("userId", userInfo.getUserId());
+            frontendUserInfo.put("username", userInfo.getUsername());
+            frontendUserInfo.put("realName", userInfo.getRealname());
+            frontendUserInfo.put("tenantId", userInfo.getTenantId()); // 👈 关键：把租户 ID 带回去！
+
+            responseData.put("userInfo", frontendUserInfo); // 将用户信息塞入返回体
+
+            // 返回打包后的数据
+            result = Result.ok(responseData);
+            // =======================================================
+
         } catch (BadCredentialsException e) {
             result = Result.error(AuthorizationCodeEnum.AUTHORIZATION_LOGIN_NO_USER);
         }
         return result;
     }
-
     @Override
     public Result logout() {
         try {

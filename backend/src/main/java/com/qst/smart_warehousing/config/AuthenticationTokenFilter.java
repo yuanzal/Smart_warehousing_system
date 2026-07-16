@@ -40,6 +40,7 @@ public class AuthenticationTokenFilter extends OncePerRequestFilter implements O
 
         // 从请求头中获取token
         String token = request.getHeader(AuthConst.TOKEN_NAME);
+        logger.info(requestURI+":"+token);
         response.setContentType(AuthConst.DEFAULT_CONTENT_TYPE);
 
         // 如果token为空，直接放行，不为空则根据token从Redis中获取用户信息
