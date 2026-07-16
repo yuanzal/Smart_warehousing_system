@@ -16,17 +16,25 @@
         <springboot.version>3.3.3</springboot.version>
         <springdoc.version>2.1.0</springdoc.version>
         <hutool.version>5.8.25</hutool.version>
-        <lombok.version>1.18.30</lombok.version>
+        <!-- ===== Lombok 版本（稳定兼容 JDK 17/21） ===== -->
+        <lombok.version>1.18.34</lombok.version>
         <core.version>1.0.0-build</core.version>
         <mysql.version>8.1.0</mysql.version>
         <commons-pool2.version>2.12.0</commons-pool2.version>
         <mybatis-plus.version>3.5.12</mybatis-plus.version>
     </properties>
 
+    <!-- 阿里云镜像加速（加速依赖下载） -->
+    <repositories>
+        <repository>
+            <id>aliyun</id>
+            <name>阿里云公共仓库</name>
+            <url>https://maven.aliyun.com/repository/public</url>
+        </repository>
+    </repositories>
 
     <dependencyManagement>
         <dependencies>
-            <!-- Spring Boot 3.5.x -->
             <dependency>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-dependencies</artifactId>
@@ -34,7 +42,6 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
-            <!-- SpringDoc OpenAPI (替代Swagger2) -->
             <dependency>
                 <groupId>org.springdoc</groupId>
                 <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
@@ -42,8 +49,9 @@
             </dependency>
         </dependencies>
     </dependencyManagement>
+
     <dependencies>
-        <!--  actuator 监控 -->
+        <!-- actuator 监控 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
@@ -51,60 +59,49 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
-            <!-- 由 Spring Boot 父工程管理版本，如 3.3.3 -->
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
-        <!-- Spring Data Redis 依赖 -->
+        <!-- Redis -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
-
-        <!-- 连接池依赖（可选，推荐使用） -->
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-pool2</artifactId>
         </dependency>
+        <!-- Security -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
-            <!-- 无需指定版本，父工程会自动匹配 6.x 兼容版本 -->
         </dependency>
-
-        <!-- Lombok -->
-        <dependency>
-            <groupId>org.projectlombok</groupId>
-            <artifactId>lombok</artifactId>
-            <version>${lombok.version}</version>
-            <scope>compile</scope>
-        </dependency>
-        <!-- 测试 -->
+        <!-- Test -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
-        <!-- Hutool 工具包 -->
+        <!-- Hutool -->
         <dependency>
             <groupId>cn.hutool</groupId>
             <artifactId>hutool-all</artifactId>
             <version>${hutool.version}</version>
         </dependency>
-        <!-- 数据库 -->
+        <!-- MySQL -->
         <dependency>
             <groupId>com.mysql</groupId>
             <artifactId>mysql-connector-j</artifactId>
             <version>${mysql.version}</version>
         </dependency>
-        <!-- SpringDoc OpenAPI (替代Swagger2) -->
+        <!-- SpringDoc -->
         <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
         </dependency>
-        <!-- MyBatis-Plus 依赖 -->
+        <!-- MyBatis-Plus -->
         <dependency>
             <groupId>com.baomidou</groupId>
             <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
@@ -120,14 +117,13 @@
             <artifactId>fastjson</artifactId>
             <version>2.0.36</version>
         </dependency>
-        <!--        javacv 用于处理直播流-->
-        <!-- 推荐：使用 all-in-one 的 platform 包以确保版本一致 -->
+        <!-- JavaCV -->
         <dependency>
             <groupId>org.bytedeco</groupId>
             <artifactId>javacv-platform</artifactId>
-            <version>1.5.10</version> <!-- 检查最新版本 -->
+            <version>1.5.10</version>
         </dependency>
-        <!--        用于请求AI图片识别服务-->
+        <!-- WebFlux -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webflux</artifactId>
@@ -138,26 +134,53 @@
                 </exclusion>
             </exclusions>
         </dependency>
-    </dependencies>
 
+        <!-- ===== Lombok 依赖（只保留一个，使用版本变量） ===== -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <version>${lombok.version}</version>
+            <scope>compile</scope>
+        </dependency>
+        <!-- 注意：已删除重复的 Lombok 依赖条目，避免版本冲突 -->
+    </dependencies>
 
     <build>
         <plugins>
-            <!-- 确保有这个插件 -->
+            <!-- Spring Boot 打包插件 -->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
-                <version>3.3.3</version> <!-- 使用与你Spring Boot版本匹配的插件版本 -->
+                <version>3.3.3</version>
                 <executions>
                     <execution>
                         <goals>
-                            <goal>repackage</goal> <!-- 这个目标会重新打包成可执行JAR -->
+                            <goal>repackage</goal>
                         </goals>
                     </execution>
                 </executions>
                 <configuration>
-                    <!-- 替换为你的主类全路径 -->
                     <mainClass>com.qst.smart_warehousing.Main</mainClass>
+                </configuration>
+            </plugin>
+
+            <!-- ===== Maven 编译器插件：保留参数名称并配置 Lombok 注解处理器 ===== -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.11.0</version>
+                <configuration>
+                    <source>17</source>
+                    <target>17</target>
+                    <!-- 添加 parameters=true 使 @RequestParam 无需显式指定 name -->
+                    <parameters>true</parameters>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
                 </configuration>
             </plugin>
         </plugins>
