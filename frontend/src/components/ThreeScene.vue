@@ -7,7 +7,27 @@ import { ref, onMounted, onBeforeUnmount } from 'vue'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js'
+import { ElMessage } from 'element-plus'
 import axios from 'axios'
+// ===== API 管理 =====
+import { getSlots } from '@/api/storage'
+import { getAgvPositions } from '@/api/agv'
+
+// ===== 常量配置 =====
+import {
+  ANIMATION_DURATION,
+  AGV_POLL_INTERVAL,
+  SLOT_REFRESH_INTERVAL,
+  STATUS_COLORS,
+  STATUS_TEXT
+} from '@/config/constants'
+
+// ===== 调试日志 =====
+const debugLog = (...args) => {
+  if (import.meta.env.DEV) {
+    console.log(...args)
+  }
+}
 
 const container = ref(null)
 let scene, camera, renderer, controls, labelRenderer
@@ -33,16 +53,9 @@ let animTargetPos = null
 let animStartTarget = null
 let animEndTarget = null
 let animStartTime = 0
-const animDuration = 1000
+const animDuration = ANIMATION_DURATION
 
-const statusColors = {
-  0: 0x00ff88,
-  1: 0xff4444,
-  2: 0xffaa00,
-  3: 0x888888
-}
-
-// ---------- 初始化 ----------
+// ---------- 初始化场景 ----------
 const initScene = () => {
   const width = container.value.clientWidth
   const height = container.value.clientHeight
@@ -93,6 +106,8 @@ const initScene = () => {
   container.value.addEventListener('click', onPointerClick)
   // ===== 新增：鼠标移动事件（货位高亮） =====
   container.value.addEventListener('mousemove', onPointerMove)
+  // ===== 暴露 scene 到全局，方便控制台调试 =====
+  window.scene = scene
 
   // 加载货位数据
   fetchSlots()
@@ -104,8 +119,8 @@ const initScene = () => {
 
 // ---------- AGV 小车 ----------
 const createAGV = (color = 0x00aaff) => {
+  console.log('=== createAGV 被调用, color:', color)
   const group = new THREE.Group()
-  
   // 车身
   const bodyGeo = new THREE.BoxGeometry(1.2, 0.4, 0.8)
   const bodyMat = new THREE.MeshStandardMaterial({ color })
@@ -118,7 +133,6 @@ const createAGV = (color = 0x00aaff) => {
   const light = new THREE.Mesh(lightGeo, lightMat)
   light.position.set(0, 0.5, 0)
   group.add(light)
-  
   return group
 }
 
@@ -126,7 +140,6 @@ const createAGV = (color = 0x00aaff) => {
 const addLabel = (slot) => {
   const div = document.createElement('div')
   div.textContent = slot.id
-  // ===== 优化：标签样式调整 =====
   div.style.color = '#ffffff'
   div.style.fontSize = '14px'
   div.style.fontWeight = 'bold'
@@ -160,9 +173,15 @@ const onPointerClick = (event) => {
   if (intersects.length > 0) {
     const data = intersects[0].object.userData
     if (data && data.id) {
-      const statusText = ['空闲', '已占用', '锁定', '故障'][data.status] || '未知'
-      // ===== 优化：显示承载量和包裹编号 =====
-      alert(`📦 货位: ${data.id}\n📊 状态: ${statusText}\n📏 最大承重: ${data.maxWeight || 0}kg\n⚖️ 当前载重: ${(data.currentWeight || 0).toFixed(1)}kg\n📦 包裹: ${data.parcelCode || '无'}\n📍 坐标: (${data.x.toFixed(1)}, ${data.y.toFixed(1)}, ${data.z.toFixed(1)})`)
+      const statusText = STATUS_TEXT[data.status] || '未知'
+      alert(
+        `📦 货位: ${data.id}\n` +
+        `📊 状态: ${statusText}\n` +
+        `📏 最大承重: ${data.maxWeight || 0}kg\n` +
+        `⚖️ 当前载重: ${(data.currentWeight || 0).toFixed(1)}kg\n` +
+        `📦 包裹: ${data.parcelCode || '无'}\n` +
+        `📍 坐标: (${data.x.toFixed(1)}, ${data.y.toFixed(1)}, ${data.z.toFixed(1)})`
+      )
     }
   }
 }
@@ -190,7 +209,6 @@ const onPointerMove = (event) => {
   if (intersects.length > 0) {
     const obj = intersects[0].object
     if (obj.userData && obj.userData.id) {
-      // 高亮：变亮并增加发光效果
       obj.material.color.setHex(0xffffff)
       obj.material.emissive.setHex(0x444444)
       hoveredObject = obj
@@ -202,17 +220,95 @@ const onPointerMove = (event) => {
 // ---------- AGV 数据 ----------
 const fetchAgvData = async () => {
   try {
-    const res = await axios.get('/api/agv/positions')
-    if (res.data.code === 200) {
-      updateAgvs(res.data.data)
+    const res = await getAgvPositions()
+    // 打印完整响应（用于调试）
+    console.log('=== AGV API 原始响应 ===', res)
+    console.log('=== res.data 内容 ===', res.data)
+
+    // 判断响应结构：可能是 axios 响应对象，也可能是直接解包后的数据
+    let responseData = res
+    // 如果 res 有 data 字段且 data 是对象，且包含 code，则 res 是 axios 响应
+    if (res.data && typeof res.data === 'object' && 'code' in res.data) {
+      responseData = res.data
+    }
+    // 如果 responseData 是 axios 响应但 data 是后端数据，则提取
+    // 这里我们最终期望 responseData 为 { code, msg, data }
+    const apiResult = responseData
+    console.log('=== 解析后的 API 结果 ===', apiResult)
+
+    if (apiResult.code === 200 || apiResult.code === 0) {
+      const data = apiResult.data // 可能是对象或数组
+      console.log('=== data 字段类型:', typeof data, '值:', data)
+
+      // 如果 data 为空或不存在，使用模拟数据
+      if (!data || (typeof data === 'object' && Object.keys(data).length === 0)) {
+        console.warn('AGV 数据为空，使用模拟数据')
+        updateAgvs(generateMockAgvData())
+        return
+      }
+
+      let agvList = []
+      // 如果 data 是数组，直接遍历
+      if (Array.isArray(data)) {
+        agvList = data.map(item => {
+          let pos = item
+          // 如果 item 是字符串，尝试解析
+          if (typeof item === 'string') {
+            try { pos = JSON.parse(item) } catch (e) { /* 忽略 */ }
+          }
+          return {
+            id: pos.id || pos.deviceId || 'unknown',
+            x: pos.x || 0,
+            z: pos.z || 0,
+            angle: pos.angle || 0
+          }
+        })
+      } else if (typeof data === 'object') {
+        // 对象格式：{ agv_001: {...} 或 字符串 }
+        agvList = Object.keys(data).map(key => {
+          let pos = data[key]
+          // 如果是字符串，尝试解析
+          if (typeof pos === 'string') {
+            try { pos = JSON.parse(pos) } catch (e) { /* 保留原字符串 */ }
+          }
+          // 如果 pos 是对象，直接使用
+          if (typeof pos === 'object' && pos !== null) {
+            return {
+              id: key,
+              x: pos.x || 0,
+              z: pos.z || 0,
+              angle: pos.angle || 0
+            }
+          } else {
+            // 如果不是对象，可能是其他格式，忽略
+            console.warn(`跳过 ${key}，数据格式异常:`, pos)
+            return null
+          }
+        }).filter(item => item !== null)
+      } else {
+        console.warn('未知的 data 格式，使用模拟数据')
+        updateAgvs(generateMockAgvData())
+        return
+      }
+
+      console.log('=== 解析后的 agvList ===', agvList)
+      if (agvList.length > 0) {
+        updateAgvs(agvList)
+      } else {
+        console.warn('解析后 agvList 为空，使用模拟数据')
+        updateAgvs(generateMockAgvData())
+      }
+    } else {
+      console.warn('API 返回错误码，使用模拟数据')
+      updateAgvs(generateMockAgvData())
     }
   } catch (error) {
-    console.warn('AGV 数据加载失败，使用模拟数据:', error)
+    console.error('AGV 数据加载失败，使用模拟数据:', error)
+    ElMessage.error('AGV 数据加载失败，使用模拟数据')
     updateAgvs(generateMockAgvData())
   }
 }
 
-// ===== 新增：生成模拟 AGV 数据 =====
 const generateMockAgvData = () => {
   const list = []
   const time = Date.now() / 1000
@@ -221,17 +317,20 @@ const generateMockAgvData = () => {
     const radius = 5 + i * 0.5
     const x = Math.sin(time * 0.3 + phase) * radius
     const z = Math.cos(time * 0.3 + phase) * (radius * 0.7)
-    const angle = -Math.atan2(Math.cos(time * 0.3 + phase) * (radius * 0.7),
-                              Math.sin(time * 0.3 + phase) * radius)
-    list.push({ id: i+1, x, z, angle })
+    const angle = -Math.atan2(
+      Math.cos(time * 0.3 + phase) * (radius * 0.7),
+      Math.sin(time * 0.3 + phase) * radius
+    )
+    list.push({ id: `agv_${String(i+1).padStart(3,'0')}`, x, z, angle })
   }
   return list
 }
 
-// ===== 新增：更新 AGV 模型位置 =====
 const updateAgvs = (agvList) => {
-  // 确保 agvMeshes 数量与 agvList 一致
+  console.log('=== updateAgvs 被调用, agvList 长度:', agvList.length)
+  // 确保数量匹配
   while (agvMeshes.length < agvList.length) {
+    console.log('=== 创建新的 AGV, 当前数量:', agvMeshes.length)
     const color = 0x00aaff + (agvMeshes.length * 0x223344)
     const agv = createAGV(color)
     scene.add(agv)
@@ -247,21 +346,23 @@ const updateAgvs = (agvList) => {
     if (mesh) {
       mesh.position.set(data.x, 0.2, data.z)
       if (data.angle !== undefined) mesh.rotation.y = data.angle
+      console.log(`[AGV] ${data.id} -> (${data.x}, 0.2, ${data.z})`)
     }
   })
+  console.log('=== 更新后 agvMeshes 数量:', agvMeshes.length)
 }
 
 // ===== 新增：启动 AGV 轮询（若 WebSocket 未连接） =====
 const startAgvPolling = () => {
   if (agvPollTimer) clearInterval(agvPollTimer)
-  agvPollTimer = setInterval(fetchAgvData, 3000)
+  agvPollTimer = setInterval(fetchAgvData, AGV_POLL_INTERVAL)
 }
 
-// ---------- 货位数据 ----------
+// ---------- 货位数据（带调试日志） ----------
 const fetchSlots = async () => {
   try {
-    // ===== 优化：对接真实 API =====
-    const res = await axios.get('/api/storage/slots')
+    const res = await getSlots()
+    console.log('=== 货位 API 原始数据 ===', res.data)
     if (res.data.code === 200) {
       const slots = res.data.data.map(s => ({
         id: s.slotCode,
@@ -274,86 +375,33 @@ const fetchSlots = async () => {
         parcelCode: s.parcelCode || '',
         floor: s.floor || 1
       }))
+      console.log('=== 映射后的 slots 数据（前3条）===', slots.slice(0, 3))
       renderSlots(slots)
     } else {
-      console.warn('API 返回错误，使用模拟数据')
+      debugLog('货位 API 返回错误，使用模拟数据')
       renderSlots(generateMockSlots())
     }
   } catch (error) {
-    console.error('加载货位数据失败，使用模拟数据:', error)
+    debugLog('加载货位数据失败，使用模拟数据:', error)
+    ElMessage.error('加载货位数据失败，已切换为模拟数据')
     renderSlots(generateMockSlots())
   }
 }
 
-// ===== 新增：定时刷新数据（降级方案） =====
-const startAutoRefresh = () => {
-  if (refreshInterval) clearInterval(refreshInterval)
-  refreshInterval = setInterval(fetchSlots, 5000)  // 每 5 秒刷新
-}
-
-// ===== 新增：WebSocket 实时推送 =====
-const connectWebSocket = () => {
-  try {
-    ws = new WebSocket('ws://localhost:8080/ws/slots')
-    
-    ws.onopen = () => {
-      console.log('WebSocket 连接成功')
-      // 如果 WebSocket 连接成功，停止轮询
-      if (refreshInterval) clearInterval(refreshInterval)
-    }
-    
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data)
-        if (data.code === 200 && data.data) {
-          const slots = data.data.map(s => ({
-            id: s.slotCode,
-            x: s.xcoordinate || s.xCoordinate || 0,
-            y: s.ycoordinate || s.yCoordinate || 0,
-            z: s.zcoordinate || s.zCoordinate || 0,
-            status: s.status !== undefined ? s.status : 0,
-            maxWeight: s.maxWeight || 0,
-            currentWeight: s.currentWeight || 0,
-            parcelCode: s.parcelCode || '',
-            floor: s.floor || 1
-          }))
-          renderSlots(slots)
-          console.log('WebSocket 数据更新')
-        }
-      } catch (e) {
-        console.warn('WebSocket 数据解析失败:', e)
-      }
-    }
-    
-    ws.onerror = (error) => {
-      console.error('WebSocket 错误:', error)
-    }
-    
-    ws.onclose = () => {
-      console.log('WebSocket 断开，启用定时轮询')
-      startAutoRefresh()
-    }
-  } catch (e) {
-    console.warn('WebSocket 不可用，启用定时轮询')
-    startAutoRefresh()
-  }
-}
-
-// 生成模拟货位数据（3排 × 5列 × 3层）
 const generateMockSlots = () => {
   const slots = []
   for (let row = 0; row < 3; row++) {
     for (let col = 0; col < 5; col++) {
       for (let layer = 0; layer < 3; layer++) {
         slots.push({
-          id: `A-${row+1}-${col+1}-${layer+1}`,
+          id: `A-${row + 1}-${col + 1}-${layer + 1}`,
           x: (col - 2) * 4,
           y: layer * 2.5 + 1.25,
           z: (row - 1) * 4,
           status: Math.floor(Math.random() * 4),
           maxWeight: 500,
           currentWeight: Math.random() * 300,
-          parcelCode: Math.random() > 0.6 ? `P-${Date.now()%100000}` : '',
+          parcelCode: Math.random() > 0.6 ? `P-${Date.now() % 100000}` : '',
           floor: (row + col + layer) % 3 + 1
         })
       }
@@ -362,9 +410,8 @@ const generateMockSlots = () => {
   return slots
 }
 
-// 渲染货位
 const renderSlots = (slots) => {
-  // 清除旧货位
+  console.log('=== renderSlots 被调用，数据条数 ===', slots.length)
   slotMeshes.forEach(mesh => scene.remove(mesh))
   slotMeshes = []
   clickableMeshes = []
@@ -376,7 +423,7 @@ const renderSlots = (slots) => {
   slots.forEach(slot => {
     const status = slot.status !== undefined ? slot.status : 0
     const material = new THREE.MeshStandardMaterial({
-      color: statusColors[status] || 0x888888,
+      color: STATUS_COLORS[status] || 0x888888,
       transparent: true,
       opacity: 0.9
     })
@@ -398,22 +445,19 @@ const renderSlots = (slots) => {
     slotMeshes.push(cube)
     clickableMeshes.push(cube)
 
-    // 边框
     const edges = new THREE.EdgesGeometry(geometry)
     const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0xffffff }))
     line.position.copy(cube.position)
     scene.add(line)
     slotMeshes.push(line)
 
-    // ===== 新增：添加文本标签 =====
     const label = addLabel(slot)
-    // 将标签也加入楼层分组
     const floor = slot.floor || 1
     if (!floorGroups[floor]) floorGroups[floor] = []
     floorGroups[floor].push(cube, line, label)
   })
 
-  // 应用当前楼层过滤
+  console.log('场景中对象总数（含标签）:', scene.children.length)
   applyFloorFilter(currentFloor)
 }
 
@@ -427,7 +471,6 @@ const applyFloorFilter = (floor) => {
   })
 }
 
-// ===== 新增：切换楼层（供外部调用） =====
 const switchFloor = (floor) => {
   currentFloor = floor
   applyFloorFilter(floor)
@@ -435,7 +478,7 @@ const switchFloor = (floor) => {
 
 // ---------- 视角动画 ----------
 const flyTo = (targetPos, targetLookAt) => {
-  console.log('flyTo 开始执行, 目标位置:', targetPos, '目标注视点:', targetLookAt)
+  debugLog('flyTo 开始执行, 目标位置:', targetPos, '目标注视点:', targetLookAt)
   animStartPos = camera.position.clone()
   animStartTarget = controls.target.clone()
   animTargetPos = targetPos.clone()
@@ -445,13 +488,12 @@ const flyTo = (targetPos, targetLookAt) => {
   controls.enableDamping = false
 }
 
-// ===== 新增：快捷视角 =====
 const flyToView = (view) => {
-  console.log('flyToView 被调用, view:', view)
+  debugLog('flyToView 被调用, view:', view)
   const views = {
-    top:    { pos: new THREE.Vector3(0, 30, 0.1), look: new THREE.Vector3(0, 0, 0) },
-    front:  { pos: new THREE.Vector3(0, 5, 25),   look: new THREE.Vector3(0, 0, 0) },
-    side:   { pos: new THREE.Vector3(25, 5, 0),   look: new THREE.Vector3(0, 0, 0) }
+    top: { pos: new THREE.Vector3(0, 30, 0.1), look: new THREE.Vector3(0, 0, 0) },
+    front: { pos: new THREE.Vector3(0, 5, 25), look: new THREE.Vector3(0, 0, 0) },
+    side: { pos: new THREE.Vector3(25, 5, 0), look: new THREE.Vector3(0, 0, 0) }
   }
   const v = views[view]
   if (v) flyTo(v.pos, v.look)
@@ -472,7 +514,7 @@ const animate = () => {
       animating = false
       controls.enableDamping = true
       controls.update()
-      console.log('视角动画完成')
+      debugLog('视角动画完成')
     }
   }
   if (controls) controls.update()
@@ -528,15 +570,17 @@ onMounted(() => {
           }))
           renderSlots(slots)
         }
-      } catch (e) { console.warn('WebSocket 数据解析失败', e) }
+      } catch (e) {
+        debugLog('WebSocket 数据解析失败', e)
+      }
     }
     ws.onclose = () => {
-      console.log('WebSocket 断开，启用轮询')
-      if (!refreshInterval) refreshInterval = setInterval(fetchSlots, 5000)
+      debugLog('WebSocket 断开，启用轮询')
+      if (!refreshInterval) refreshInterval = setInterval(fetchSlots, SLOT_REFRESH_INTERVAL)
     }
   } catch (e) {
-    console.warn('WebSocket 不可用，启用轮询')
-    if (!refreshInterval) refreshInterval = setInterval(fetchSlots, 5000)
+    debugLog('WebSocket 不可用，启用轮询')
+    if (!refreshInterval) refreshInterval = setInterval(fetchSlots, SLOT_REFRESH_INTERVAL)
   }
 
   window.addEventListener('resize', onResize)
@@ -603,8 +647,6 @@ onBeforeUnmount(() => {
         }
     }
 })
-
-
 </script>
 
 <style scoped>
@@ -613,6 +655,4 @@ onBeforeUnmount(() => {
   height: 100vh;
   display: block;
 }
-
-
 </style>
