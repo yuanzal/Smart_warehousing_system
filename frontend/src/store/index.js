@@ -19,7 +19,7 @@ export default createStore({
     },
   },
   mutations: {
-    setToken(state, value) {
+    SET_TOKEN(state, value) {
       state.token = value
       localStorage.setItem('token', value)
     },

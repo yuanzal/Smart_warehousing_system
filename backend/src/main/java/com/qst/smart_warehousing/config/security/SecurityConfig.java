@@ -3,9 +3,11 @@ package com.qst.smart_warehousing.config.security;
 import com.alibaba.fastjson.JSON;
 import com.qst.smart_warehousing.config.AuthenticationTokenFilter;
 import com.qst.smart_warehousing.entity.Result;
+import jakarta.servlet.DispatcherType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -61,6 +63,8 @@ public class SecurityConfig {
                         // -------------------------- 开放接口列表 --------------------------
                         // 开放接口：无需登录即可访问
                         .requestMatchers(OPEN_URLS).permitAll()
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll() // 所有预检直接放行，不走Token校验
+                        .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         // 所有其他请求：必须登录后才能访问
                         .anyRequest().authenticated()
                 )
