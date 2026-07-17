@@ -2,6 +2,7 @@ package com.qst.smart_warehousing.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -68,6 +69,7 @@ public class AdminUser implements Serializable, UserDetails {
     @Schema(title = "租户id")
     private Integer tenantId;
 
+    @JsonIgnore
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return List.of();

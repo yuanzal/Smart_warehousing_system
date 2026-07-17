@@ -7,7 +7,7 @@ import store from '@/store'
 export function removeAuth() {
   return new Promise((resolve, reject) => {
     cache.rmAxiosCache()
-    store.commit('SET_ALLAUTH', null)
+    store.commit('SET_TOKEN', null)
     delete axios.defaults.headers['Admin-Token']
     resolve(true)
   })

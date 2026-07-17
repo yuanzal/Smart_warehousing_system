@@ -114,7 +114,7 @@ const handleLogin = async () => {
                     await addAuth(token)
 
                     // 3. 将 Token 更新到 Vuex store，激活路由守卫防线
-                    store.commit('user/SET_TOKEN', token)
+                    store.commit('SET_TOKEN', token)
 
                     ElMessage({
                         type: 'success',
