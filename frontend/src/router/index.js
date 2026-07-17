@@ -6,6 +6,8 @@ import store from '@/store'
 import Login from '../views/Login.vue'
 // ===== 新增：导入 Dashboard 组件 =====
 import Dashboard from '@/views/Dashboard.vue'
+// ===== 新增：导入 DeviceManagement 组件 =====
+import DeviceManagement from '@/views/DeviceManagement.vue'
 
 // 定义路由规则
 const routes = [
@@ -24,6 +26,13 @@ const routes = [
     path: '/dashboard',
     name: 'Dashboard',
     component: Dashboard,
+    meta: { requiresAuth: false }  // 开发阶段无需登录，后续可改为 true
+  },
+  // ===== 新增：设备管理页面 =====
+  {
+    path: '/device-management',
+    name: 'DeviceManagement',
+    component: DeviceManagement,
     meta: { requiresAuth: false }  // 开发阶段无需登录，后续可改为 true
   },
   {
