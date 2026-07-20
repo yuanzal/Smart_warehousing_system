@@ -10,6 +10,8 @@ import Dashboard from '../views/Dashboard.vue' // 3D大屏子组件
 import UserManagement from '../views/UserManagement.vue' // 用户管理子组件
 import Placeholder from '../views/Placeholder.vue' // 统一开发占位组件
 import DeviceManagement from '@/views/DeviceManagement.vue'
+import ParcelFile from "@/views/ParcelFile.vue";
+import SlotManagement from "@/views/SlotManagement.vue";
 
 // 定义路由规则
 const routes = [
@@ -19,19 +21,19 @@ const routes = [
     component: Login,
     meta: { requiresAuth: false }
   },
-  // ===== 新增：3D 仓库数字孪生页面 =====
-  {
-    path: '/dashboard',
-    name: 'Dashboard',
-    component: Dashboard,
-    meta: { requiresAuth: false }  // 开发阶段无需登录，后续可改为 true
-  },
+  // // ===== 新增：3D 仓库数字孪生页面 =====
+  // {
+  //   path: '/dashboard',
+  //   name: 'Dashboard',
+  //   component: Dashboard,
+  //   meta: { requiresAuth: true }  // 开发阶段无需登录，后续可改为 true
+  // },
   // ===== 新增：设备管理页面 =====
   {
     path: '/device-management',
     name: 'DeviceManagement',
     component: DeviceManagement,
-    meta: {requiresAuth: false}  // 开发阶段无需登录，后续可改为 true
+    meta: {requiresAuth: true}  // 开发阶段无需登录，后续可改为 true
   },
   {
     path: '/',
@@ -46,15 +48,15 @@ const routes = [
         meta: { title: '3D 数字孪生控制塔', requiresAuth: true }
       },
       {
-        path: 'packages',
-        name: 'Packages',
-        component: Placeholder,
+        path: 'parcelFile',
+        name: 'ParcelFile',
+        component: ParcelFile,
         meta: { title: '包裹主档案管理', requiresAuth: true }
       },
       {
-        path: 'locations',
-        name: 'Locations',
-        component: Placeholder,
+        path: 'slotManagement',
+        name: 'SlotManagement',
+        component: SlotManagement,
         meta: { title: '货位基础堆垛管理', requiresAuth: true }
       },
       {

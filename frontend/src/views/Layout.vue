@@ -19,11 +19,11 @@
                     <span class="menu-emoji">🖥️</span>
                     <span>3D 数字孪生控制塔</span>
                 </el-menu-item>
-                <el-menu-item index="/packages">
+                <el-menu-item index="/parcelFile">
                     <span class="menu-emoji">✉️</span>
                     <span>包裹主档案管理</span>
                 </el-menu-item>
-                <el-menu-item index="/locations">
+                <el-menu-item index="/slotManagement">
                     <span class="menu-emoji">🧱</span>
                     <span>货位基础堆垛管理</span>
                 </el-menu-item>
@@ -43,7 +43,7 @@
                 <div class="header-left">
           <span class="status-indicator">
             <span class="pulse-dot"></span>
-            仓内物联网络：在线 (Redis高可用已降级保护)
+            仓内物联网络：在线
           </span>
                 </div>
                 <div class="header-right">

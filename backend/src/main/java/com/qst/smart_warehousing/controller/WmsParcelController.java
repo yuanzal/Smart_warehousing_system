@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.qst.smart_warehousing.DTO.ParcelInboundDTO;
 import com.qst.smart_warehousing.DTO.ParcelMoveDTO;
 import com.qst.smart_warehousing.DTO.ParcelOutboundDTO;
+import com.qst.smart_warehousing.entity.AdminUser;
 import com.qst.smart_warehousing.entity.Result;
 import com.qst.smart_warehousing.entity.WmsParcel;
 import com.qst.smart_warehousing.service.WmsParcelService;
@@ -12,6 +13,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 @Tag(name = "包裹主档案管理")
@@ -28,6 +30,14 @@ public class WmsParcelController {
         // 计算体积存储：长 * 宽 * 高
         if (parcel.getLength() != null && parcel.getWidth() != null && parcel.getHeight() != null) {
             parcel.setVolume(parcel.getLength().multiply(parcel.getWidth()).multiply(parcel.getHeight()));
+        }
+        AdminUser currentUser = (AdminUser) SecurityContextHolder.getContext()
+                .getAuthentication()
+                .getPrincipal();
+        // 2. 自动注入租户ID，前端不用传
+        if (currentUser.getTenantId() != 0) {
+            // 普通租户管理员：强制覆盖为自身租户ID，忽略前端传值
+            parcel.setTenantId(currentUser.getTenantId());
         }
         boolean saved = parcelService.save(parcel);
         return saved ? Result.ok() : Result.error(500, "包裹档案建立失败");
