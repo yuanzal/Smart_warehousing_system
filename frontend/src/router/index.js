@@ -12,6 +12,7 @@ import Placeholder from '../views/Placeholder.vue' // 统一开发占位组件
 import DeviceManagement from '@/views/DeviceManagement.vue'
 import ParcelFile from "@/views/ParcelFile.vue";
 import SlotManagement from "@/views/SlotManagement.vue";
+import ManualDispatchingConsole from "@/views/ManualDispatchingConsole.vue";
 
 // 定义路由规则
 const routes = [
@@ -64,6 +65,18 @@ const routes = [
         name: 'Tasks',
         component: Placeholder,
         meta: { title: '智能分拣调度台', requiresAuth: true }
+      },
+      {
+        path: 'inventoryLogs',
+        name: 'InventoryLogs',
+        component: Placeholder,
+        meta: { title: '库存流转流水账', requiresAuth: true }
+      },
+      {
+        path: 'manualDispatchingConsole',
+        name: 'ManualDispatchingConsole',
+        component: ManualDispatchingConsole,
+        meta: { title: '出入库作业大厅', requiresAuth: true}
       },
       {
         path: 'users',

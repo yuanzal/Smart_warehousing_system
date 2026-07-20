@@ -25,7 +25,7 @@ import {
 // ===== 调试日志 =====
 const debugLog = (...args) => {
   if (import.meta.env.DEV) {
-    console.log(...args)
+    // console.log(...args)
   }
 }
 
@@ -119,7 +119,7 @@ const initScene = () => {
 
 // ---------- AGV 小车 ----------
 const createAGV = (color = 0x00aaff) => {
-  console.log('=== createAGV 被调用, color:', color)
+  // console.log('=== createAGV 被调用, color:', color)
   const group = new THREE.Group()
   // 车身
   const bodyGeo = new THREE.BoxGeometry(1.2, 0.4, 0.8)
@@ -188,42 +188,42 @@ const onPointerClick = (event) => {
 
 // ===== 新增：货位悬停高亮 =====
 const onPointerMove = (event) => {
-  const rect = container.value.getBoundingClientRect()
-  pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
-  pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
+    const rect = container.value.getBoundingClientRect()
+    pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
+    pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
 
-  raycaster.setFromCamera(pointer, camera)
-  const intersects = raycaster.intersectObjects(clickableMeshes)
+    raycaster.setFromCamera(pointer, camera)
+    const intersects = raycaster.intersectObjects(clickableMeshes)
 
-  // 重置之前高亮的货位
-  if (hoveredObject) {
-    const prev = hoveredObject
-    const status = prev.userData.status
-    const color = statusColors[status] || 0x888888
-    prev.material.color.setHex(color)
-    prev.material.emissive.setHex(0x000000)
-    hoveredObject = null
-    container.value.style.cursor = 'default'
-  }
-
-  if (intersects.length > 0) {
-    const obj = intersects[0].object
-    if (obj.userData && obj.userData.id) {
-      obj.material.color.setHex(0xffffff)
-      obj.material.emissive.setHex(0x444444)
-      hoveredObject = obj
-      container.value.style.cursor = 'pointer'
+    // 重置之前高亮的货位
+    if (hoveredObject) {
+        const prev = hoveredObject
+        const status = prev.userData.status
+        // 修复：statusColors → STATUS_COLORS
+        const color = STATUS_COLORS[status] || 0x888888
+        prev.material.color.setHex(color)
+        prev.material.emissive.setHex(0x000000)
+        hoveredObject = null
+        container.value.style.cursor = 'default'
     }
-  }
-}
 
+    if (intersects.length > 0) {
+        const obj = intersects[0].object
+        if (obj.userData && obj.userData.id) {
+            obj.material.color.setHex(0xffffff)
+            obj.material.emissive.setHex(0x444444)
+            hoveredObject = obj
+            container.value.style.cursor = 'pointer'
+        }
+    }
+}
 // ---------- AGV 数据 ----------
 const fetchAgvData = async () => {
   try {
     const res = await getAgvPositions()
     // 打印完整响应（用于调试）
-    console.log('=== AGV API 原始响应 ===', res)
-    console.log('=== res.data 内容 ===', res.data)
+    // console.log('=== AGV API 原始响应 ===', res)
+    // console.log('=== res.data 内容 ===', res.data)
 
     // 判断响应结构：可能是 axios 响应对象，也可能是直接解包后的数据
     let responseData = res
@@ -234,11 +234,11 @@ const fetchAgvData = async () => {
     // 如果 responseData 是 axios 响应但 data 是后端数据，则提取
     // 这里我们最终期望 responseData 为 { code, msg, data }
     const apiResult = responseData
-    console.log('=== 解析后的 API 结果 ===', apiResult)
+    // console.log('=== 解析后的 API 结果 ===', apiResult)
 
     if (apiResult.code === 200 || apiResult.code === 0) {
       const data = apiResult.data // 可能是对象或数组
-      console.log('=== data 字段类型:', typeof data, '值:', data)
+      // console.log('=== data 字段类型:', typeof data, '值:', data)
 
       // 如果 data 为空或不存在，使用模拟数据
       if (!data || (typeof data === 'object' && Object.keys(data).length === 0)) {
@@ -327,10 +327,10 @@ const generateMockAgvData = () => {
 }
 
 const updateAgvs = (agvList) => {
-  console.log('=== updateAgvs 被调用, agvList 长度:', agvList.length)
+  // console.log('=== updateAgvs 被调用, agvList 长度:', agvList.length)
   // 确保数量匹配
   while (agvMeshes.length < agvList.length) {
-    console.log('=== 创建新的 AGV, 当前数量:', agvMeshes.length)
+    // console.log('=== 创建新的 AGV, 当前数量:', agvMeshes.length)
     const color = 0x00aaff + (agvMeshes.length * 0x223344)
     const agv = createAGV(color)
     scene.add(agv)
@@ -346,10 +346,10 @@ const updateAgvs = (agvList) => {
     if (mesh) {
       mesh.position.set(data.x, 0.2, data.z)
       if (data.angle !== undefined) mesh.rotation.y = data.angle
-      console.log(`[AGV] ${data.id} -> (${data.x}, 0.2, ${data.z})`)
+      // console.log(`[AGV] ${data.id} -> (${data.x}, 0.2, ${data.z})`)
     }
   })
-  console.log('=== 更新后 agvMeshes 数量:', agvMeshes.length)
+  // console.log('=== 更新后 agvMeshes 数量:', agvMeshes.length)
 }
 
 // ===== 新增：启动 AGV 轮询（若 WebSocket 未连接） =====
@@ -362,7 +362,7 @@ const startAgvPolling = () => {
 const fetchSlots = async () => {
   try {
     const res = await getSlots()
-    console.log('=== 货位 API 原始数据 ===', res.data)
+    // console.log('=== 货位 API 原始数据 ===', res.data)
     if (res.data.code === 200) {
       const slots = res.data.data.map(s => ({
         id: s.slotCode,
@@ -375,7 +375,7 @@ const fetchSlots = async () => {
         parcelCode: s.parcelCode || '',
         floor: s.floor || 1
       }))
-      console.log('=== 映射后的 slots 数据（前3条）===', slots.slice(0, 3))
+      // console.log('=== 映射后的 slots 数据（前3条）===', slots.slice(0, 3))
       renderSlots(slots)
     } else {
       debugLog('货位 API 返回错误，使用模拟数据')
@@ -411,7 +411,7 @@ const generateMockSlots = () => {
 }
 
 const renderSlots = (slots) => {
-  console.log('=== renderSlots 被调用，数据条数 ===', slots.length)
+  // console.log('=== renderSlots 被调用，数据条数 ===', slots.length)
   slotMeshes.forEach(mesh => scene.remove(mesh))
   slotMeshes = []
   clickableMeshes = []
@@ -457,7 +457,7 @@ const renderSlots = (slots) => {
     floorGroups[floor].push(cube, line, label)
   })
 
-  console.log('场景中对象总数（含标签）:', scene.children.length)
+  // console.log('场景中对象总数（含标签）:', scene.children.length)
   applyFloorFilter(currentFloor)
 }
 

@@ -7,34 +7,64 @@
             </div>
 
             <el-menu
-                :default-active="activeMenu"
-                :collapse-transition="false"
-                class="sidebar-menu"
-                background-color="#1e293b"
-                text-color="#94a3b8"
-                active-text-color="#38bdf8"
-                @select="handleMenuSelect"
+                    :default-active="activeMenu"
+                    :collapse-transition="false"
+                    class="sidebar-menu"
+                    background-color="#1e293b"
+                    text-color="#94a3b8"
+                    active-text-color="#38bdf8"
+                    unique-opened
+                    @select="handleMenuSelect"
             >
                 <el-menu-item index="/dashboard">
                     <span class="menu-emoji">🖥️</span>
                     <span>3D 数字孪生控制塔</span>
                 </el-menu-item>
-                <el-menu-item index="/parcelFile">
-                    <span class="menu-emoji">✉️</span>
-                    <span>包裹主档案管理</span>
-                </el-menu-item>
-                <el-menu-item index="/slotManagement">
-                    <span class="menu-emoji">🧱</span>
-                    <span>货位基础堆垛管理</span>
-                </el-menu-item>
-                <el-menu-item index="/tasks">
-                    <span class="menu-emoji">⚙️</span>
-                    <span>智能分拣调度台</span>
-                </el-menu-item>
-                <el-menu-item index="/users">
-                    <span class="menu-emoji">👥</span>
-                    <span>系统用户管理</span>
-                </el-menu-item>
+
+                <el-sub-menu index="operations">
+                    <template #title>
+                        <span class="menu-emoji">⚙️</span>
+                        <span>仓内核心作业区</span>
+                    </template>
+                    <el-menu-item index="/manualDispatchingConsole">
+                        <span class="menu-emoji">📥</span>
+                        <span>手动出入库大厅</span>
+                    </el-menu-item>
+                    <el-menu-item index="/tasks">
+                        <span class="menu-emoji">🤖</span>
+                        <span>智能分拣调度台</span>
+                    </el-menu-item>
+                </el-sub-menu>
+
+                <el-sub-menu index="data-center">
+                    <template #title>
+                        <span class="menu-emoji">📊</span>
+                        <span>数据综合检索中心</span>
+                    </template>
+                    <el-menu-item index="/inventoryLogs">
+                        <span class="menu-emoji">📜</span>
+                        <span>库存流转流水账</span>
+                    </el-menu-item>
+                </el-sub-menu>
+
+                <el-sub-menu index="master-data">
+                    <template #title>
+                        <span class="menu-emoji">🗃️</span>
+                        <span>全局基础配置档案</span>
+                    </template>
+                    <el-menu-item index="/parcelFile">
+                        <span class="menu-emoji">✉️</span>
+                        <span>包裹主档案管理</span>
+                    </el-menu-item>
+                    <el-menu-item index="/slotManagement">
+                        <span class="menu-emoji">🧱</span>
+                        <span>货位基础堆垛管理</span>
+                    </el-menu-item>
+                    <el-menu-item index="/users">
+                        <span class="menu-emoji">👥</span>
+                        <span>系统用户管理</span>
+                    </el-menu-item>
+                </el-sub-menu>
             </el-menu>
         </el-aside>
 

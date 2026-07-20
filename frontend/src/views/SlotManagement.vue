@@ -26,7 +26,7 @@
 
         <el-card class="table-card" shadow="never">
             <el-table :data="tableData" v-loading="loading" border>
-                <el-table-column prop="slotId" label="货位主键ID" width="80" align="center" />
+                <el-table-column prop="slotId" label="货位系统ID" width="80" align="center" />
                 <el-table-column prop="slotCode" label="货位编码" width="120" />
                 <el-table-column prop="zoneName" label="所属库区" width="120" />
                 <el-table-column label="货架 行/列/层" width="140">

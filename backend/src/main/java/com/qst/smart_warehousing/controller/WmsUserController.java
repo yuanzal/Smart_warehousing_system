@@ -6,6 +6,8 @@ import com.qst.smart_warehousing.DTO.UserQueryDTO;
 import com.qst.smart_warehousing.DTO.WmsUserSaveDTO;
 import com.qst.smart_warehousing.entity.Result;
 import com.qst.smart_warehousing.service.WmsUserService;
+import io.micrometer.core.instrument.binder.netty4.NettyAllocatorMetrics;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -13,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
+@Tag(name = "WMS系统用户管理")
 @RestController
 @RequestMapping("/wms")
 public class WmsUserController {

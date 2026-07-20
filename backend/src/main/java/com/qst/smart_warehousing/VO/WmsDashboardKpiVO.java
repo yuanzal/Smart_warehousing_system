@@ -7,13 +7,13 @@ import java.math.BigDecimal;
 @Schema(name = "看板指标卡片数据")
 @Data
 public class WmsDashboardKpiVO {
-    // A. 任务维度
-    private Long totalTasks;          // 历史总运行分拣任务数
-    private Long completedTasks;      // 已成功落位完工任务数
-    private BigDecimal completionRate; // 任务完工率（百分比，例如 98.50%）
+    // 1. UI 强相关的核心三大卡片指标
+    private Long inboundToday;              // 当日入库落位数量（件）
+    private Long outboundToday;             // 当日扣减出库数量（件）
+    private BigDecimal storageOccupancyRate;// 库位实时空间占用率/饱和度（如 68.40）
 
-    // B. 设备与仓储维度
-    private Long activeAlerts;        // 当前未处理的严重告警数
-    private BigDecimal agvUtilizationRate; // 实时AGV设备利用率（工作中小车 / 总小车数）
-    private BigDecimal storageOccupancyRate; // 库位实时空间占用率
+    // 2. 设备健康指标
+    private Long activeAlerts;              // 当前未处理的严重告警数
+    private BigDecimal agvUtilizationRate;   // 实时AGV设备利用率
+    private BigDecimal completionRate;       // 自动化任务完工率
 }
