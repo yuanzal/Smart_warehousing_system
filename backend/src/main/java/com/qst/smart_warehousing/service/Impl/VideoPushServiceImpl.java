@@ -1,106 +1,154 @@
 package com.qst.smart_warehousing.service.Impl;
 
-import com.qst.smart_warehousing.config.VideoConfig;
 import com.qst.smart_warehousing.DTO.VideoStreamDTO;
 import com.qst.smart_warehousing.service.VideoPushService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class VideoPushServiceImpl implements VideoPushService {
     private static final Logger logger = LoggerFactory.getLogger(VideoPushServiceImpl.class);
 
-    @Autowired
-    private VideoConfig videoConfig;
+    // ===== 配置项（从 application.yml 注入） =====
+    @Value("${ffmpeg.path:C:/ffmpeg/ffmpeg-8.1.2-essentials_build/bin/ffmpeg.exe}")
+    private String ffmpegPath;
 
+    @Value("${video.test.source:C:/Users/12256/Downloads/Test Jellyfin 1080p AVC 3M.mp4}")
+    private String testVideoSource;
+
+    // HLS 输出目录（必须与 Nginx 的 hls_path 一致）
+    private final String hlsDir = "C:/nginx-rtmp/html/hls";
+
+    // 进程管理
     private final ConcurrentHashMap<String, Process> processMap = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Boolean> runningMap = new ConcurrentHashMap<>();
 
-    private static final String DEFAULT_TEST_VIDEO = "test.mp4";
-
     @Override
     public VideoStreamDTO startPush(String streamId, String rtspUrl) {
+        logger.info("启动 HLS 生成: streamId={}, rtspUrl={}", streamId, rtspUrl);
+
+        // 如果已有进程，先停止
         if (runningMap.containsKey(streamId) && runningMap.get(streamId)) {
-            logger.warn("Stream {} is already running, stopping first.", streamId);
             stopPush(streamId);
         }
 
-        String rtmpUrl = videoConfig.getRtmpServer() + streamId;
-        String hlsUrl = videoConfig.getHlsBaseUrl() + streamId + ".m3u8";
-
-        ProcessBuilder pb;
+        // 确定输入源
+        String inputSource;
         if (rtspUrl != null && !rtspUrl.trim().isEmpty()) {
+            inputSource = rtspUrl;
+        } else {
+            // 检查测试视频是否存在，不存在则使用 lavfi 测试源
+            File testFile = new File(testVideoSource);
+            if (testFile.exists()) {
+                inputSource = testVideoSource;
+            } else {
+                logger.warn("测试视频不存在，使用 lavfi 测试源");
+                inputSource = "lavfi=testsrc=size=1280x720:rate=30";
+            }
+        }
+
+        // 输出路径
+        String outputPath = hlsDir + "/" + streamId + ".m3u8";
+        // 确保目录存在
+        new File(hlsDir).mkdirs();
+
+        // 构建 FFmpeg 命令（直接生成 HLS）
+        ProcessBuilder pb;
+        if (inputSource.startsWith("lavfi")) {
+            // 使用 lavfi 测试源
             pb = new ProcessBuilder(
-                    videoConfig.getFfmpegPath(),
-                    "-re", "-i", rtspUrl,
-                    "-c:v", "copy",
+                    ffmpegPath,
+                    "-re",
+                    "-f", "lavfi",
+                    "-i", "testsrc=size=1280x720:rate=30",
+                    "-c:v", "libx264",
                     "-c:a", "aac",
-                    "-f", "flv",
-                    rtmpUrl
+                    "-f", "hls",
+                    "-hls_time", "6",
+                    "-hls_list_size", "10",
+                    "-hls_flags", "delete_segments",
+                    outputPath
             );
         } else {
-            String videoPath = new File(DEFAULT_TEST_VIDEO).getAbsolutePath();
-            if (!new File(videoPath).exists()) {
-                videoPath = "C:/nginx-rtmp/test.mp4";
-                if (!new File(videoPath).exists()) {
-                    logger.error("Test video not found: {}", videoPath);
-                    throw new RuntimeException("Test video not found: " + videoPath);
-                }
-            }
+            // 使用视频文件（本地或 RTSP）
             pb = new ProcessBuilder(
-                    videoConfig.getFfmpegPath(),
+                    ffmpegPath,
                     "-re",
-                    "-stream_loop", "-1",
-                    "-i", videoPath,
+                    "-stream_loop", "-1",      // 循环播放
+                    "-i", inputSource,
                     "-c:v", "libx264",
                     "-preset", "veryfast",
-                    "-g", String.valueOf(videoConfig.getHlsFragmentSeconds() * 10),
                     "-c:a", "aac",
                     "-b:a", "128k",
-                    "-f", "flv",
-                    rtmpUrl
+                    "-f", "hls",
+                    "-hls_time", "6",
+                    "-hls_list_size", "10",
+                    "-hls_flags", "delete_segments",
+                    outputPath
             );
         }
 
         pb.redirectErrorStream(true);
+        // 设置工作目录为 FFmpeg 所在目录（避免路径问题）
+        pb.directory(new File(ffmpegPath).getParentFile());
+
+        logger.info("FFmpeg 命令: {}", String.join(" ", pb.command()));
 
         try {
             Process process = pb.start();
             processMap.put(streamId, process);
             runningMap.put(streamId, true);
+            logger.info("HLS 生成进程已启动, PID: {}", process.pid());
 
+            // 日志读取线程（便于调试）
             new Thread(() -> {
-                try (var reader = new java.io.BufferedReader(new java.io.InputStreamReader(process.getInputStream()))) {
+                try (var reader = new java.io.BufferedReader(
+                        new java.io.InputStreamReader(process.getInputStream()))) {
                     String line;
                     while ((line = reader.readLine()) != null) {
                         logger.debug("[{}] {}", streamId, line);
                     }
                 } catch (IOException e) {
-                    logger.warn("Stream {} log reader error: {}", streamId, e.getMessage());
+                    logger.warn("读取进程输出失败: {}", e.getMessage());
                 }
             }).start();
 
-            logger.info("Stream {} started, RTMP: {}, HLS: {}", streamId, rtmpUrl, hlsUrl);
+            // 监控进程退出
+            new Thread(() -> {
+                try {
+                    int exitCode = process.waitFor();
+                    logger.info("HLS 生成进程退出, streamId={}, exitCode={}", streamId, exitCode);
+                    if (exitCode != 0) {
+                        runningMap.put(streamId, false);
+                        processMap.remove(streamId);
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    logger.warn("等待进程退出被中断");
+                }
+            }).start();
 
+            // 构建返回 DTO
             VideoStreamDTO dto = new VideoStreamDTO();
             dto.setStreamId(streamId);
             dto.setRtspUrl(rtspUrl);
-            dto.setRtmpUrl(rtmpUrl);
-            dto.setHlsUrl(hlsUrl);
+            dto.setRtmpUrl(null);                 // 不再使用 RTMP
+            dto.setHlsUrl("http://localhost:8081/hls/" + streamId + ".m3u8");
             dto.setStatus("running");
             dto.setPid((int) process.pid());
             return dto;
 
         } catch (IOException e) {
-            logger.error("Failed to start stream {}: {}", streamId, e.getMessage(), e);
+            logger.error("启动 HLS 生成失败: {}", e.getMessage(), e);
             runningMap.put(streamId, false);
-            throw new RuntimeException("Failed to start FFmpeg process: " + e.getMessage(), e);
+            throw new RuntimeException("启动 FFmpeg 失败: " + e.getMessage(), e);
         }
     }
 
@@ -109,20 +157,19 @@ public class VideoPushServiceImpl implements VideoPushService {
         Process process = processMap.get(streamId);
         if (process == null) {
             runningMap.put(streamId, false);
-            logger.warn("Stream {} not found", streamId);
+            logger.warn("流 {} 未在运行", streamId);
             return false;
         }
-
         process.destroy();
         try {
             process.waitFor();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            logger.warn("Interrupted while waiting for stream {} to stop", streamId);
+            logger.warn("等待进程终止被中断");
         }
         processMap.remove(streamId);
         runningMap.put(streamId, false);
-        logger.info("Stream {} stopped", streamId);
+        logger.info("流 {} 已停止", streamId);
         return true;
     }
 
@@ -136,8 +183,14 @@ public class VideoPushServiceImpl implements VideoPushService {
         if (process != null) {
             dto.setPid((int) process.pid());
         }
-        dto.setRtmpUrl(videoConfig.getRtmpServer() + streamId);
-        dto.setHlsUrl(videoConfig.getHlsBaseUrl() + streamId + ".m3u8");
+        dto.setRtmpUrl(null);
+        dto.setHlsUrl("http://localhost:8081/hls/" + streamId + ".m3u8");
         return dto;
+    }
+
+    @Override
+    public Map<String, VideoStreamDTO> getAllStreams() {
+        // 如需全量状态，可遍历 runningMap 返回
+        return Map.of();
     }
 }
