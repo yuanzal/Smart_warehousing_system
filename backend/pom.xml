@@ -16,7 +16,6 @@
         <springboot.version>3.3.3</springboot.version>
         <springdoc.version>2.1.0</springdoc.version>
         <hutool.version>5.8.25</hutool.version>
-        <!-- ===== Lombok 版本（稳定兼容 JDK 17/21） ===== -->
         <lombok.version>1.18.34</lombok.version>
         <core.version>1.0.0-build</core.version>
         <mysql.version>8.1.0</mysql.version>
@@ -24,7 +23,7 @@
         <mybatis-plus.version>3.5.12</mybatis-plus.version>
     </properties>
 
-    <!-- 阿里云镜像加速（加速依赖下载） -->
+    <!-- 阿里云镜像加速 -->
     <repositories>
         <repository>
             <id>aliyun</id>
@@ -51,19 +50,23 @@
     </dependencyManagement>
 
     <dependencies>
-        <!-- actuator 监控 -->
+        <!-- Actuator 监控 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
+
+        <!-- Spring Web (Tomcat) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
+
         <!-- Redis -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -73,34 +76,40 @@
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-pool2</artifactId>
         </dependency>
-        <!-- Security -->
+
+        <!-- Spring Security -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
+
         <!-- Test -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+
         <!-- Hutool -->
         <dependency>
             <groupId>cn.hutool</groupId>
             <artifactId>hutool-all</artifactId>
             <version>${hutool.version}</version>
         </dependency>
+
         <!-- MySQL -->
         <dependency>
             <groupId>com.mysql</groupId>
             <artifactId>mysql-connector-j</artifactId>
             <version>${mysql.version}</version>
         </dependency>
+
         <!-- SpringDoc -->
         <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
         </dependency>
+
         <!-- MyBatis-Plus -->
         <dependency>
             <groupId>com.baomidou</groupId>
@@ -112,37 +121,34 @@
             <artifactId>mybatis-plus-jsqlparser</artifactId>
             <version>${mybatis-plus.version}</version>
         </dependency>
+
+        <!-- Fastjson -->
         <dependency>
             <groupId>com.alibaba</groupId>
             <artifactId>fastjson</artifactId>
             <version>2.0.36</version>
         </dependency>
+
         <!-- JavaCV -->
         <dependency>
             <groupId>org.bytedeco</groupId>
             <artifactId>javacv-platform</artifactId>
             <version>1.5.10</version>
         </dependency>
-        <!-- WebFlux -->
+
+        <!-- WebFlux (WebClient 使用，与 Tomcat 共存) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webflux</artifactId>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.springframework.boot</groupId>
-                    <artifactId>spring-boot-starter-tomcat</artifactId>
-                </exclusion>
-            </exclusions>
         </dependency>
 
-        <!-- ===== Lombok 依赖（只保留一个，使用版本变量） ===== -->
+        <!-- Lombok -->
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <version>${lombok.version}</version>
             <scope>compile</scope>
         </dependency>
-        <!-- 注意：已删除重复的 Lombok 依赖条目，避免版本冲突 -->
     </dependencies>
 
     <build>
@@ -164,7 +170,7 @@
                 </configuration>
             </plugin>
 
-            <!-- ===== Maven 编译器插件：保留参数名称并配置 Lombok 注解处理器 ===== -->
+            <!-- Maven 编译器插件 -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -172,7 +178,6 @@
                 <configuration>
                     <source>17</source>
                     <target>17</target>
-                    <!-- 添加 parameters=true 使 @RequestParam 无需显式指定 name -->
                     <parameters>true</parameters>
                     <annotationProcessorPaths>
                         <path>
