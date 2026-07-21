@@ -157,8 +157,9 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, onMounted, onBeforeUnmount, nextTick, onUnmounted} from 'vue'
 import request from '@/utils/request.js'
+// TODO:稍后改为封装axios，防止出现token鉴权问题
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import * as echarts from 'echarts'
@@ -173,10 +174,10 @@ const threeSceneRef = ref(null)
 const inboundToday = ref(1428)
 const outboundToday = ref(915)
 const storageOccupancyRate = ref(68.4)
-// TODO：这是模拟数据
-const activeAlerts = ref(2)            // 💡 新增：告警数变量
-const agvUtilizationRate = ref(12.50)  // 💡 新增：AGV利用率变量
-const completionRate = ref(25.00)      // 💡 新增：完工率变量
+
+const activeAlerts = ref(6)            // 💡 新增：告警数变量
+const agvUtilizationRate = ref(15.90)  // 💡 新增：AGV利用率变量
+const completionRate = ref(30.00)      // 💡 新增：完工率变量
 
 // ===== ECharts 容器引用与句柄声明 =====
 const turnoverChartRef = ref(null)
@@ -201,14 +202,44 @@ let statusTimer = null
 let alarmTimer = null
 let dataTimer = null
 
-// TODO: 改为真读实数据
+// TODO: 改为真实数据
 // ===== 物联网告警模拟数据源 =====
-const alarmList = ref([
-    { time: '16:45:22', location: '货位 A-02-01', text: '货位超载 (当前 520kg / 上限 500kg)', level: 'danger' },
-    { time: '16:42:10', location: 'AGV #03号', text: '检测到激光防撞雷达前方物理阻挡，已挂起', level: 'warning' },
-    { time: '16:30:15', location: 'B区重货仓', text: '温湿度报高 (当前 31.5℃ / 上限 30.0℃)', level: 'warning' },
-    { time: '16:12:04', location: '货位 C-01-12', text: '货物条码发生视觉复验不匹配异常', level: 'info' }
-])
+const alarmList = ref([])
+// 后端级别 → 前端CSS类名映射
+const levelMap = {
+    'CRITICAL': 'danger',
+    'WARNING': 'warning',
+    'INFO': 'info'
+}
+
+// 格式化ISO时间为 HH:mm:ss
+const formatTime = (isoTime) => {
+    return new Date(isoTime).toTimeString().split(' ')[0]
+}
+
+// 拉取最新未处理告警列表
+const fetchActiveAlerts = async () => {
+    try {
+        const res = await request.get('/wms/operation-alert/active-list')
+        const alertData = res.data || []
+        // 后端字段 -> 前端渲染字段映射
+        alarmList.value = alertData
+            .sort((a, b) => new Date(b.createTime) - new Date(a.createTime)) // 按时间倒序
+            .slice(0, 5) // 只保留最新5条
+            .map(item => ({
+                time: formatTime(item.createTime),
+                // location: alertTypeLocationMap[item.alertType] || '未知区域',
+                text: item.alertContent,
+                level: levelMap[item.alertLevel] || 'info'
+            }))
+    } catch (err) {
+        console.dir(err) // 打印完整错误对象堆栈
+        // console.log('错误名称：', err.name)
+        // console.log('错误信息：', err.message)
+        // console.log('错误栈：', err.stack)
+        // 降级：请求失败不清空列表，保留上一次数据
+    }
+}
 
 // ===== 🔌 一键抓取中台控制塔全局多维聚合KPI与4张图表数据 =====
 const fetchDashboardOverview = async () => {
@@ -481,20 +512,15 @@ onMounted(() => {
     // 3. ⚡ 中台大盘聚合控制塔核心数据：每隔 12 秒向后端要一次最新动态
     dataTimer = setInterval(fetchDashboardOverview, 12000)
 
-    // 4. 模拟无线传感网突发物联网数据刷入
-    alarmTimer = setInterval(() => {
-        const mockLocs = ['A区冷链', 'AGV #05', '分拣滑道B', '出库月台']
-        const mockTexts = ['堆垛托盘发生无线离线告警', '电量低于 15% 申请回充', '主履带红外传感器受阻', 'PDA扫码枪异常中断']
-        const levels = ['danger', 'warning', 'info']
+    fetchActiveAlerts()
+    alarmTimer = setInterval(fetchActiveAlerts, 14000)
+})
 
-        alarmList.value.unshift({
-            time: new Date().toTimeString().split(' ')[0],
-            location: mockLocs[Math.floor(Math.random() * mockLocs.length)],
-            text: mockTexts[Math.floor(Math.random() * mockTexts.length)],
-            level: levels[Math.floor(Math.random() * levels.length)]
-        })
-        if (alarmList.value.length > 5) alarmList.value.pop()
-    }, 14000)
+onUnmounted(() => {
+    if (alarmTimer) {
+        clearInterval(alarmTimer)
+        alarmTimer = null
+    }
 })
 
 onBeforeUnmount(() => {

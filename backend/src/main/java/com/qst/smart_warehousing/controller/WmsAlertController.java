@@ -1,10 +1,10 @@
 package com.qst.smart_warehousing.controller;
 
+import com.qst.smart_warehousing.entity.Result;
 import com.qst.smart_warehousing.entity.WmsAlertLog;
 import com.qst.smart_warehousing.service.IWmsAlertService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import jakarta.annotation.Resource;
 import java.util.List;
@@ -19,29 +19,30 @@ public class WmsAlertController {
 
     @Operation(summary = "巡检触发：手动/定时巡检库区空间是否爆仓")
     @PostMapping("/check-overflow")
-    public ResponseEntity<String> triggerInventoryCheck() {
+    public Result<Boolean> triggerInventoryCheck() {
         boolean isOverflow = alertService.checkInventoryOverflow();
         if (isOverflow) {
-            return ResponseEntity.ok("警告：全库区已触及爆仓阈值红线，告警日志已生成并同步孪生大屏！");
+            return Result.ok(true);
         }
-        return ResponseEntity.ok("库区容积率处于安全水平，扫描完毕。");
+        return Result.ok(false);
     }
 
     @Operation(summary = "驾驶舱联动：获取当前全库挂起未处理的严重告警列表")
     @GetMapping("/active-list")
-    public ResponseEntity<List<WmsAlertLog>> getActiveAlerts() {
-        return ResponseEntity.ok(alertService.getActiveAlerts());
+    public Result<List<WmsAlertLog>> getActiveAlerts() {
+        List<WmsAlertLog> alertList = alertService.getActiveAlerts();
+        return Result.ok(alertList);
     }
 
     @Operation(summary = "人工介入：中台操作员消警与故障解除同步")
     @PostMapping("/resolve/{alertId}")
-    public ResponseEntity<String> resolveAlert(
+    public Result<String> resolveAlert(
             @PathVariable("alertId") Long alertId,
             @RequestParam("operatorId") Long operatorId) {
         boolean success = alertService.resolveAlert(alertId, operatorId);
         if (success) {
-            return ResponseEntity.ok("告警数据链解除圆满成功，中台恢复正常排程调度状态！");
+            return Result.ok("告警解除成功");
         }
-        return ResponseEntity.status(500).body("消警失败，未找到该告警流水单号。");
+        return Result.error(500,"消警失败，未找到该告警流水单号");
     }
 }

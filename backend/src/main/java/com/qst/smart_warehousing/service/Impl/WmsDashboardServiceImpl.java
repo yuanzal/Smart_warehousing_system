@@ -5,16 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.qst.smart_warehousing.VO.WmsDashboardChartsVO;
 import com.qst.smart_warehousing.VO.WmsDashboardKpiVO;
 import com.qst.smart_warehousing.VO.WmsDashboardOverviewVO;
-import com.qst.smart_warehousing.entity.WmsAgvDevice;
-import com.qst.smart_warehousing.entity.WmsAlertLog;
-import com.qst.smart_warehousing.entity.WmsStorageSlot;
-import com.qst.smart_warehousing.entity.WmsParcel;
-import com.qst.smart_warehousing.entity.WmsSortingTask;
-import com.qst.smart_warehousing.mapper.WmsAgvDeviceMapper;
-import com.qst.smart_warehousing.mapper.WmsAlertLogMapper;
-import com.qst.smart_warehousing.mapper.WmsStorageSlotMapper;
-import com.qst.smart_warehousing.mapper.WmsParcelMapper;
-import com.qst.smart_warehousing.mapper.WmsSortingTaskMapper;
+import com.qst.smart_warehousing.entity.*;
+import com.qst.smart_warehousing.mapper.*;
 import com.qst.smart_warehousing.service.IWmsDashboardService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -22,8 +14,13 @@ import org.springframework.stereotype.Service;
 import jakarta.annotation.Resource;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.format.TextStyle;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+
 
 @Slf4j
 @Service
@@ -31,6 +28,18 @@ public class WmsDashboardServiceImpl implements IWmsDashboardService {
 
     private static final String DASHBOARD_CACHE_KEY = "wms:dashboard:overview";
     private static final long CACHE_TTL_SECONDS = 10; // 10秒短缓存，兼顾大屏实时性与MySQL物理探库防刷
+
+    // ========== 拣货效能图表配置常量 ==========
+    /** 固定库区分类列表 */
+    private static final List<String> PICKING_ZONE_CATEGORIES = Arrays.asList("人工拣选区", "重货B区", "冷链A区", "AGV密集线");
+    /** 前三个库区基准效能值 */
+    private static final List<Long> PICKING_BASE_VALUES = Arrays.asList(120L, 180L, 240L);
+    /** 单台AGV效能系数 */
+    private static final int AGV_EFFICIENCY_FACTOR = 85;
+    /** AGV基础效能加成 */
+    private static final int AGV_BASE_BONUS = 70;
+    /** AGV效能保底值 */
+    private static final long AGV_MIN_EFFICIENCY = 300L;
 
     @Resource
     private StringRedisTemplate stringRedisTemplate;
@@ -48,6 +57,27 @@ public class WmsDashboardServiceImpl implements IWmsDashboardService {
     private WmsAlertLogMapper alertLogMapper;
     @Resource
     private WmsParcelMapper parcelMapper; // 💡 注入包裹主档案Mapper，用于精准提取当日出入库流水
+
+    @Resource
+    private WmsDailyReportSnapshotMapper dailyReportSnapshotMapper;
+
+    public List<LocalDate> getLast7DayList() {
+        List<LocalDate> dateList = new ArrayList<>();
+        LocalDate today = LocalDate.now();
+        // 从6天前到今天，7天
+        for (int i = 6; i >= 0; i--) {
+            dateList.add(today.minusDays(i));
+        }
+        return dateList;
+    }
+
+    /**
+     * LocalDate 转 短中文星期：周一、周二...周日
+     */
+    public String getWeekCn(LocalDate date) {
+        DayOfWeek week = date.getDayOfWeek();
+        return week.getDisplayName(TextStyle.SHORT, Locale.CHINA);
+    }
 
     @Override
     public WmsDashboardOverviewVO getOverviewData() {
@@ -164,7 +194,6 @@ public class WmsDashboardServiceImpl implements IWmsDashboardService {
         alertLevelMap.put("danger", "严重危险");
         alertLevelMap.put("warning", "中危警告");
         alertLevelMap.put("info", "常规提示");
-
         for (Map.Entry<String, String> entry : alertLevelMap.entrySet()) {
             // 统计当前未处理(status=0)且符合指定危险层级的告警总数
             // 注意：请根据你 wms_alert_log 真实的级别字段名调整（这里假设字段名叫 level 或者是 alert_level）
@@ -182,22 +211,94 @@ public class WmsDashboardServiceImpl implements IWmsDashboardService {
 
 
         // Chart A: 库内存货周转时序趋势 (左侧 7 天平滑折线图)
-        // 生产级建议：统计过去 7 天内每日完成的订单包裹数量。此处做平滑基准输出，确保前端渲染不会因为旧测试数据断流
+        // ==================== Chart A: 库内存货周转时序趋势 (替换硬编码，使用每日快照表) ====================
         Map<String, Object> turnoverTrend = new HashMap<>();
-        turnoverTrend.put("xAxis", Arrays.asList("周一", "周二", "周三", "周四", "周五", "周六", "周日"));
+        List<LocalDate> last7Days = getLast7DayList();
 
-        // 动态计算过去 7 天的业务水准基准值
-        long baseCount = completedTasks > 0 ? (completedTasks / 5) + 10 : 45;
-        turnoverTrend.put("yData", Arrays.asList(baseCount, baseCount + 12, baseCount - 8, baseCount + 25, baseCount + 40, baseCount + 48, baseCount + 30));
+        // 1. 构建xAxis：动态生成7天中文星期（不再写死周一到周日）
+        List<String> xAxis = last7Days.stream()
+                .map(this::getWeekCn)
+                .collect(Collectors.toList());
+        turnoverTrend.put("xAxis", xAxis);
+
+        // 2. 查询快照表近7天统计数据
+        QueryWrapper<WmsDailyReportSnapshot> snapshotWrapper = new QueryWrapper<>();
+        // 日期大于等于7天前，只查当前租户/项目，根据业务补充tenant_id、project_id条件
+        LocalDate startDate = LocalDate.now().minusDays(6);
+        snapshotWrapper.ge("stat_date", startDate);
+        // 多租户隔离，根据你的业务加上
+        // snapshotWrapper.eq("tenant_id", 当前登录租户ID);
+        // snapshotWrapper.eq("project_id", 当前项目ID);
+        List<WmsDailyReportSnapshot> snapshotList = dailyReportSnapshotMapper.selectList(snapshotWrapper);
+
+        // 3. 构建日期->当日周转总量映射（周转=入库+出库）
+        Map<LocalDate, Long> dateTurnoverMap = new HashMap<>();
+        for (WmsDailyReportSnapshot snap : snapshotList) {
+            LocalDate statDate = snap.getStatDate();
+            long turnover = snap.getTotalInboundCount() + snap.getTotalOutboundCount();
+            dateTurnoverMap.put(statDate, turnover);
+        }
+
+        // 4. 按7天顺序填充yData，无快照日期补0
+        List<Long> yData = new ArrayList<>();
+        for (LocalDate date : last7Days) {
+            yData.add(dateTurnoverMap.getOrDefault(date, 0L));
+        }
+
+        // 5. 兜底降级：如果7天全部都是0（快照未生成/无业务数据），再用平滑基准兜底，防止前端空白
+        boolean allZero = yData.stream().allMatch(v -> v == 0);
+        if (allZero) {
+            long baseCount = completedTasks > 0 ? (completedTasks / 5) + 10 : 45;
+            yData = Arrays.asList(baseCount, baseCount + 12, baseCount - 8, baseCount + 25, baseCount + 40, baseCount + 48, baseCount + 30);
+        }
+        turnoverTrend.put("yData", yData);
         charts.setTurnoverTrend(turnoverTrend);
 
-        // Chart B: 智能硬件与多库区拣货效能对比 (右侧横向多维柱状图)
+        // ==================== Chart B: 多库区拣货效能对比（真实业务数据版） ====================
         Map<String, Object> pickingEfficiency = new HashMap<>();
-        pickingEfficiency.put("categories", Arrays.asList("人工拣选区", "重货B区", "冷链A区", "AGV密集线"));
+        // TODO: 设置多租户鉴权
+        // 1. 从货位表查询所有库区分类（动态获取，不再写死）
+        List<String> zoneCategories = storageSlotMapper.selectList(
+                        new QueryWrapper<WmsStorageSlot>()
+                                .select("DISTINCT zone_name")
+                                .eq("tenant_id", 1) // 替换为你的租户变量
+                                .eq("project_id", 1001)   // 替换为你的项目变量
+                ).stream()
+                .map(WmsStorageSlot::getZoneName)
+                .collect(Collectors.toList());
 
-        // 基于真实的设备活跃数及作业量分配全仓效能权重
-        long agvPower = workingAgvs * 85 + 70;
-        pickingEfficiency.put("values", Arrays.asList(120, 180, 240, Math.max(300, agvPower)));
+        // 2. 按库区分组，统计当日完成的分拣任务量（真实效能值）
+        List<Map<String, Object>> zoneTaskCountList = sortingTaskMapper.selectZoneTaskCount(1, 1001);
+
+        // 3. 构建 库区 -> 任务量 映射
+        Map<String, Long> zoneCountMap = new HashMap<>();
+        for (Map<String, Object> map : zoneTaskCountList) {
+            String zoneName = (String) map.get("zone_name");
+            Long count = ((Number) map.get("task_count")).longValue();
+            zoneCountMap.put(zoneName, count);
+        }
+
+        // 4. 按库区顺序填充效能值，无任务的库区补0
+        List<Long> values = new ArrayList<>();
+        for (String zone : zoneCategories) {
+            values.add(zoneCountMap.getOrDefault(zone, 0L));
+        }
+
+
+
+        // 5. 兜底降级：如果库区无数据/全为0，回退到模拟值，避免前端空白
+        boolean allZero2 = values.stream().allMatch(v -> v == 0);
+        if (allZero2) {
+            long agvPower = workingAgvs * AGV_EFFICIENCY_FACTOR + AGV_BASE_BONUS;
+            values = new ArrayList<>(PICKING_BASE_VALUES);
+            values.add(Math.max(AGV_MIN_EFFICIENCY, agvPower));
+            // 兜底时用固定分类
+            pickingEfficiency.put("categories", PICKING_ZONE_CATEGORIES);
+        } else {
+            pickingEfficiency.put("categories", zoneCategories);
+        }
+
+        pickingEfficiency.put("values", values);
         charts.setPickingEfficiency(pickingEfficiency);
 
         overview.setCharts(charts);

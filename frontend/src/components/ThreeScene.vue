@@ -551,7 +551,7 @@ onMounted(() => {
 
   // WebSocket
   try {
-    ws = new WebSocket('ws://localhost:8080/ws/slots')
+    ws = new WebSocket('ws://localhost:8080/wms/storage-slot')
     ws.onopen = () => console.log('WebSocket 连接成功')
     ws.onmessage = (e) => {
       try {
