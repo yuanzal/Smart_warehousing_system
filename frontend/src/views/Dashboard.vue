@@ -152,7 +152,60 @@
                     </div>
                 </el-col>
             </el-row>
+        <div class="video-section">
+            <div class="video-header">
+                <span class="video-title">📹 实时监控</span>
+                <div class="video-controls">
+                    <!-- 启动/停止推流 -->
+                    <button
+                        v-if="!isRunning"
+                        class="btn-start"
+                        @click="startPush"
+                        :disabled="videoLoading"
+                    >
+                        {{ videoLoading ? '启动中...' : '启动推流' }}
+                    </button>
+                    <button
+                        v-else
+                        class="btn-stop"
+                        @click="stopPush"
+                        :disabled="videoLoading"
+                    >
+                        {{ videoLoading ? '停止中...' : '停止推流' }}
+                    </button>
+
+                    <!-- ===== AI 检测开关 ===== -->
+                    <button
+                        class="btn-ai"
+                        :class="{ active: enableAI }"
+                        @click="toggleAI"
+                        :disabled="!hlsUrl"
+                    >
+                        {{ enableAI ? '🤖 AI检测中' : '📡 启用AI' }}
+                    </button>
+
+                    <span class="status-tag" :class="isRunning ? 'running' : 'stopped'">
+                        {{ isRunning ? '● 推流中' : '○ 已停止' }}
+                    </span>
+                </div>
+            </div>
+            <div class="video-wrapper">
+                <!-- ===== VideoPlayer 传入 AI 参数 ===== -->
+                <VideoPlayer
+                    v-if="hlsUrl"
+                    :key="hlsUrl + (enableAI ? aiVideoSource : '')"
+                    :hls-url="hlsUrl"
+                    :ai-video-source="enableAI ? aiVideoSource : ''"
+                    :conf-threshold="confThreshold"
+                    :interval-sec="intervalSec"
+                />
+                <div v-else class="video-placeholder">
+                    <span>未启动推流</span>
+                    <span class="hint">点击「启动推流」开始播放测试视频</span>
+                </div>
+            </div>
         </div>
+    </div>
     </div>
 </template>
 
@@ -168,6 +221,7 @@ import VideoPlayer from '../components/VideoPlayer.vue'
 
 // ===== 基础与双端适配状态 =====
 const isMobile = ref(false)
+// ===== 3D 场景引用 =====
 const threeSceneRef = ref(null)
 
 // ===== 📊 KPI 卡片全量响应式变量 =====
@@ -191,6 +245,8 @@ let taskStatusChart = null            // 💡 新增
 let alertLevelChart = null            // 💡 新增
 
 // ===== 视频推流业务状态 =====
+
+// ===== 视频推流状态 =====
 const hlsUrl = ref('')
 const isRunning = ref(false)
 const videoLoading = ref(false)
@@ -260,6 +316,27 @@ const fetchDashboardOverview = async () => {
             const { kpi, charts } = finalData
             console.log("成功提取大盘多维核心数据矩阵:", { kpi, charts })
 
+// ===== AI 检测控制 =====
+const enableAI = ref(false)
+const aiVideoSource = ref('C:/Users/12256/Downloads/Test Jellyfin 1080p AVC 3M.mp4')
+const confThreshold = ref(0.3)
+const intervalSec = ref(1.0)
+
+// ---------- AI 切换 ----------
+const toggleAI = () => {
+    enableAI.value = !enableAI.value
+    if (!enableAI.value) {
+        // 关闭 AI 检测时，清空视频源
+        aiVideoSource.value = ''
+    } else {
+        // 开启时如果视频源为空，设置默认测试视频
+        if (!aiVideoSource.value) {
+            aiVideoSource.value = 'C:/Users/12256/Downloads/Test Jellyfin 1080p AVC 3M.mp4'
+        }
+    }
+}
+
+// ===== 获取推流状态 =====
             // 🌟 1. 动态刷新顶部及副指标全部 6 个核心数字卡片
             if (kpi) {
                 inboundToday.value = kpi.inboundToday ?? 0
@@ -357,6 +434,11 @@ const stopPush = async () => {
         if (res.data.code === 0 || res.data.code === 200) {
             isRunning.value = false
             hlsUrl.value = ''
+            // 停止推流时自动关闭 AI 检测
+            if (enableAI.value) {
+                enableAI.value = false
+                aiVideoSource.value = ''
+            }
             ElMessage.success('推流已停止')
         }
     } catch (error) {
@@ -726,8 +808,15 @@ onBeforeUnmount(() => {
     align-items: center;
     margin-bottom: 6px;
 }
+.video-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
 .video-title { color: #f8fafc; font-size: 12.5px; font-weight: 600; }
 .video-controls button {
+    padding: 4px 10px;
     padding: 3px 10px;
     border: none;
     border-radius: 4px;
@@ -738,6 +827,43 @@ onBeforeUnmount(() => {
 .btn-start { background: #38bdf8; color: #0f172a; }
 .btn-stop { background: #ef4444; color: white; }
 .video-wrapper { width: 100%; aspect-ratio: 16 / 9; background: #000; border-radius: 4px; overflow: hidden; }
+.btn-stop {
+    background: #ef4444;
+    color: white;
+}
+.btn-ai {
+    background: transparent;
+    border: 1px solid #8b5cf6 !important;
+    color: #8b5cf6;
+    font-weight: 500;
+}
+.btn-ai.active {
+    background: #8b5cf6;
+    color: #fff;
+}
+.btn-ai:disabled {
+    border-color: #475569 !important;
+    color: #475569;
+}
+.status-tag {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 12px;
+    color: #fff;
+}
+.status-tag.running {
+    background: #10b981;
+}
+.status-tag.stopped {
+    background: #475569;
+}
+.video-wrapper {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background: #000;
+    border-radius: 6px;
+    overflow: hidden;
+}
 .video-placeholder {
     display: flex;
     flex-direction: column;

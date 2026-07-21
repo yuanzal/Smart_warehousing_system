@@ -3,7 +3,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js'
@@ -45,6 +45,12 @@ let currentFloor = 1
 let labelMeshes = []
 let agvMeshes = []
 let agvPollTimer = null
+
+// ===== 新增：AGV 平滑运动状态 =====
+const agvStates = new Map() // key: agvId (字符串), value: { current: Vector3, target: Vector3, progress: number }
+const agvTrails = new Map() // key: agvId, value: { points: Vector3[], line: THREE.Line }
+const TRAIL_LENGTH = 50
+const AGV_SPEED = 0.06 // 每帧插值速度 (0~1)
 
 // 视角动画状态
 let animating = false
@@ -326,8 +332,9 @@ const generateMockAgvData = () => {
   return list
 }
 
+// ===== 新增：更新 AGV（平滑插值 + 轨迹） =====
 const updateAgvs = (agvList) => {
-  // console.log('=== updateAgvs 被调用, agvList 长度:', agvList.length)
+  console.log('=== updateAgvs 被调用, agvList 长度:', agvList.length)
   // 确保数量匹配
   while (agvMeshes.length < agvList.length) {
     // console.log('=== 创建新的 AGV, 当前数量:', agvMeshes.length)
@@ -335,12 +342,40 @@ const updateAgvs = (agvList) => {
     const agv = createAGV(color)
     scene.add(agv)
     agvMeshes.push(agv)
+    // 初始化状态和轨迹
+    const id = agvList[agvMeshes.length - 1]?.id || `agv_${String(agvMeshes.length).padStart(3, '0')}`
+    if (!agvStates.has(id)) {
+      const initPos = new THREE.Vector3(0, 0.2, 0)
+      agvStates.set(id, {
+        current: initPos.clone(),
+        target: initPos.clone(),
+        progress: 1
+      })
+      // 初始化轨迹线
+      const lineGeo = new THREE.BufferGeometry()
+      const lineMat = new THREE.LineBasicMaterial({ color: 0x00ff88, transparent: true, opacity: 0.6 })
+      const line = new THREE.Line(lineGeo, lineMat)
+      scene.add(line)
+      agvTrails.set(id, { points: [], line })
+    }
   }
   while (agvMeshes.length > agvList.length) {
-    const m = agvMeshes.pop()
-    scene.remove(m)
+    const mesh = agvMeshes.pop()
+    scene.remove(mesh)
+    // 移除对应的轨迹和状态（通过 ID 映射，使用最后一个 ID）
+    const keys = Array.from(agvStates.keys())
+    const lastId = keys[keys.length - 1]
+    if (lastId) {
+      const trail = agvTrails.get(lastId)
+      if (trail) {
+        scene.remove(trail.line)
+        agvTrails.delete(lastId)
+      }
+      agvStates.delete(lastId)
+    }
   }
 
+  // 2. 更新每个 AGV 的目标位置和轨迹
   agvList.forEach((data, index) => {
     const mesh = agvMeshes[index]
     if (mesh) {
@@ -352,7 +387,7 @@ const updateAgvs = (agvList) => {
   // console.log('=== 更新后 agvMeshes 数量:', agvMeshes.length)
 }
 
-// ===== 新增：启动 AGV 轮询（若 WebSocket 未连接） =====
+// ===== 新增：启动 AGV 轮询 =====
 const startAgvPolling = () => {
   if (agvPollTimer) clearInterval(agvPollTimer)
   agvPollTimer = setInterval(fetchAgvData, AGV_POLL_INTERVAL)
@@ -517,8 +552,29 @@ const animate = () => {
       debugLog('视角动画完成')
     }
   }
-  if (controls) controls.update()
 
+  // ===== 新增：AGV 平滑插值 =====
+  agvMeshes.forEach((mesh, index) => {
+    // 获取对应的 id（通过 agvStates 的键顺序，但为了准确，遍历 agvStates 与 meshes 索引对应）
+    const keys = Array.from(agvStates.keys())
+    if (index >= keys.length) return
+    const id = keys[index]
+    const state = agvStates.get(id)
+    if (!state) return
+
+    // 如果进度小于1，继续插值
+    if (state.progress < 1) {
+      state.progress += AGV_SPEED
+      if (state.progress > 1) state.progress = 1
+      state.current.lerp(state.target, AGV_SPEED) // 线性插值
+      mesh.position.copy(state.current)
+    } else {
+      // 已到达目标，直接设置
+      mesh.position.copy(state.target)
+    }
+  })
+
+  // 更新控制器和渲染
   controls.update()
   if (renderer && scene && camera) {
       renderer.render(scene, camera)
@@ -646,6 +702,15 @@ onBeforeUnmount(() => {
             labelRenderer.domElement.parentNode.removeChild(labelRenderer.domElement)
         }
     }
+
+    // 10. 清理 AGV 轨迹线
+    agvTrails.forEach(trail => {
+      if (trail.line && scene) {
+        scene.remove(trail.line)
+      }
+    })
+    agvTrails.clear()
+    agvStates.clear()
 })
 </script>
 
