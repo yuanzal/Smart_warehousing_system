@@ -1,7 +1,7 @@
 <template>
     <div class="user-management-container">
-        <el-card class="query-card" shadow="never">
-            <el-form :inline="true" :model="queryParams" class="demo-form-inline" size="default">
+        <div class="filter-card">
+            <el-form :inline="true" :model="queryParams" class="dark-form" size="default">
                 <el-form-item label="用户检索">
                     <el-input v-model="queryParams.username" placeholder="请输入用户名/真实姓名" clearable />
                 </el-form-item>
@@ -17,34 +17,38 @@
                     </el-select>
                 </el-form-item>
                 <el-form-item>
-                    <el-button type="primary" @click="handleQuery">🔍 查询</el-button>
-                    <el-button @click="resetQuery">🔄 重置</el-button>
+                    <el-button type="primary" class="glow-button" @click="handleQuery">🔍 查询</el-button>
+                    <el-button class="dark-button" @click="resetQuery">🔄 重置</el-button>
                 </el-form-item>
             </el-form>
-        </el-card>
+        </div>
 
-        <el-card class="table-card" shadow="never">
+        <div class="table-card">
             <div class="table-tool-bar">
                 <div class="bar-left">
-                    <el-button type="primary" plain @click="openUserDialog('add')">➕ 新增管理员</el-button>
+                    <el-button type="primary" class="glow-button" @click="openUserDialog('add')">➕ 新增管理员</el-button>
                 </div>
                 <div class="bar-right">
                     <span class="total-text">系统内置安全策略已启用</span>
                 </div>
             </div>
 
-            <el-table :data="userList" v-loading="loading" border style="width: 100%" class="dark-table">
+            <el-table :data="userList" v-loading="loading" class="dark-table">
                 <el-table-column prop="id" label="UID" width="80" align="center" />
-                <el-table-column prop="username" label="登录账户" min-width="120" />
+                <el-table-column prop="username" label="登录账户" min-width="120">
+                    <template #default="{ row }">
+                        <span class="code-text">{{ row.username }}</span>
+                    </template>
+                </el-table-column>
                 <el-table-column prop="realName" label="真实姓名" min-width="120" />
                 <el-table-column prop="roles" label="所属角色" min-width="160">
                     <template #default="scope">
                         <el-tag
-                                v-for="role in scope.row.roles"
-                                :key="role.id"
-                                type="success"
-                                effect="dark"
-                                class="role-tag"
+                            v-for="role in scope.row.roles"
+                            :key="role.id"
+                            type="success"
+                            effect="dark"
+                            class="role-tag"
                         >
                             {{ role.name }}
                         </el-tag>
@@ -56,46 +60,54 @@
                 <el-table-column prop="status" label="账户状态" width="100" align="center">
                     <template #default="scope">
                         <el-switch
-                                v-model="scope.row.status"
-                                :active-value="1"
-                                :inactive-value="0"
-                                active-color="#10b981"
-                                inactive-color="#f43f5e"
-                                @change="handleStatusChange(scope.row)"
+                            v-model="scope.row.status"
+                            :active-value="1"
+                            :inactive-value="0"
+                            active-color="#10b981"
+                            inactive-color="#f43f5e"
+                            @change="handleStatusChange(scope.row)"
                         />
                     </template>
                 </el-table-column>
                 <el-table-column prop="createTime" label="创建时间" width="180" align="center" />
                 <el-table-column label="管理操作" width="220" fixed="right" align="center">
                     <template #default="scope">
-                        <el-button size="small" type="primary" link @click="openUserDialog('edit', scope.row)">编辑</el-button>
-                        <el-button size="small" type="warning" link @click="openPermissionDialog(scope.row)">角色赋权</el-button>
-                        <el-button size="small" type="danger" link @click="handleDelete(scope.row)">删除</el-button>
+                        <div class="action-cell">
+                            <el-button type="primary" link @click="openUserDialog('edit', scope.row)">
+                                <span>编辑</span>
+                            </el-button>
+                            <el-button type="warning" link @click="openPermissionDialog(scope.row)">
+                                <span>角色赋权</span>
+                            </el-button>
+                            <el-button type="danger" link @click="handleDelete(scope.row)">
+                                <span> 删除</span>
+                            </el-button>
+                        </div>
                     </template>
                 </el-table-column>
             </el-table>
 
             <div class="pagination-container">
                 <el-pagination
-                        v-model:current-page="queryParams.pageNum"
-                        v-model:page-size="queryParams.pageSize"
-                        :page-sizes="[10, 20, 50]"
-                        layout="total, sizes, prev, pager, next, jumper"
-                        :total="total"
-                        @size-change="handleQuery"
-                        @current-change="fetchUserData"
+                    v-model:current-page="queryParams.pageNum"
+                    v-model:page-size="queryParams.pageSize"
+                    :page-sizes="[10, 20, 50]"
+                    layout="total, sizes, prev, pager, next, jumper"
+                    :total="total"
+                    @size-change="handleQuery"
+                    @current-change="fetchUserData"
                 />
             </div>
-        </el-card>
+        </div>
 
         <el-dialog
-                v-model="userDialog.visible"
-                :title="userDialog.type === 'add' ? '新增系统管理员' : '编辑管理员信息'"
-                width="500px"
-                destroy-on-close
-                class="dark-dialog"
+            v-model="userDialog.visible"
+            :title="userDialog.type === 'add' ? '新增系统管理员' : '编辑管理员信息'"
+            width="500px"
+            destroy-on-close
+            custom-class="dark-dialog"
         >
-            <el-form :model="userForm" :rules="userRules" ref="userFormRef" label-width="90px" label-position="left">
+            <el-form :model="userForm" :rules="userRules" ref="userFormRef" label-width="90px" label-position="left" class="dark-form">
                 <el-form-item label="登录账户" prop="username">
                     <el-input v-model="userForm.username" :disabled="userDialog.type === 'edit'" placeholder="请输入登录账户名" />
                 </el-form-item>
@@ -104,10 +116,10 @@
                 </el-form-item>
                 <el-form-item label="登录密码" prop="password" :required="userDialog.type === 'add'">
                     <el-input
-                            v-model="userForm.password"
-                            type="password"
-                            show-password
-                            :placeholder="userDialog.type === 'add' ? '请输入初始密码' : '留空则代表不修改密码'"
+                        v-model="userForm.password"
+                        type="password"
+                        show-password
+                        :placeholder="userDialog.type === 'add' ? '请输入初始密码' : '留空则代表不修改密码'"
                     />
                 </el-form-item>
                 <el-form-item label="电子邮箱" prop="email">
@@ -138,18 +150,18 @@
                 </el-form-item>
             </el-form>
             <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="userDialog.visible = false">取 消</el-button>
-          <el-button type="primary" :loading="submitLoading" @click="submitUserForm">确 定</el-button>
-        </span>
+                <div class="dialog-footer">
+                    <el-button class="dark-button" @click="userDialog.visible = false">取 消</el-button>
+                    <el-button type="primary" class="glow-button" :loading="submitLoading" @click="submitUserForm">确 定</el-button>
+                </div>
             </template>
         </el-dialog>
 
         <el-dialog
-                v-model="permDialog.visible"
-                :title="`变更 [${permDialog.username}] 的安全角色`"
-                width="450px"
-                class="dark-dialog"
+            v-model="permDialog.visible"
+            :title="`变更 [${permDialog.username}] 的安全角色`"
+            width="450px"
+            custom-class="dark-dialog"
         >
             <div class="perm-transfer-box">
                 <p class="perm-tip">请勾选该用户在WMS系统中所具备的调度与管理权限角色：</p>
@@ -163,10 +175,10 @@
                 </el-checkbox-group>
             </div>
             <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="permDialog.visible = false">取 消</el-button>
-          <el-button type="primary" :loading="submitLoading" @click="submitRoleAssignment">确认赋权</el-button>
-        </span>
+                <div class="dialog-footer">
+                    <el-button class="dark-button" @click="permDialog.visible = false">取 消</el-button>
+                    <el-button type="primary" class="glow-button" :loading="submitLoading" @click="submitRoleAssignment">确认赋权</el-button>
+                </div>
             </template>
         </el-dialog>
     </div>
@@ -179,7 +191,7 @@ import {
     getUserList, createUser, updateUser, deleteUser,
     updateUserStatus, getRoleList, assignUserRoles
 } from '@/api/user'
-import * as Lockr from 'lockr' //  确保在 <script setup> 顶部引入了 Lockr
+import * as Lockr from 'lockr'
 
 // 数据加载控制
 const loading = ref(false)
@@ -226,12 +238,9 @@ const userDialog = reactive({ visible: false, type: 'add' })
 const permDialog = reactive({ visible: false, userId: null, username: '', checkedRoles: [] })
 
 
-//  1. 尝试从 Lockr 或者 原生 localStorage 获取用户信息
+// 尝试从 Lockr 或者 原生 localStorage 获取用户信息
 const getLocalUserInfo = () => {
-    // 优先尝试从 Lockr 获取 'userInfo' 对象
     let user = Lockr.get('userInfo')
-
-    // 如果 Lockr 没拿到，尝试从原生 localStorage 获取
     if (!user) {
         const raw = localStorage.getItem('userInfo')
         if (raw) {
@@ -242,13 +251,9 @@ const getLocalUserInfo = () => {
             }
         }
     }
-
-    // 如果最终都拿不到（比如用户未登录或缓存清空了），提供安全的默认兜底
-    // 注意：默认值写 "tenantId: 1" 代表普通租户管理员，防止误给 0（超管特权）
     return user || { tenantId: 1 }
 }
 
-// 💡 2. 使用 reactive 包装，使其具有响应式
 const currentLoginUser = reactive(getLocalUserInfo())
 
 /** 加载表格数据 */
@@ -300,26 +305,22 @@ const openUserDialog = (type, row = null) => {
         userForm.username = row.username
         userForm.realname = row.realName
         userForm.email = row.email
-        userForm.mobile = row.mobile || ''      // 💡 新增：回显手机号
-        userForm.tenantId = row.tenantId        // 💡 新增：回显租户ID
+        userForm.mobile = row.mobile || ''
+        userForm.tenantId = row.tenantId
         userForm.status = row.status
-        userForm.password = '' // 密码编辑时留空
+        userForm.password = ''
     } else {
-        // 🌟 新增模式：初始化表单数据
         userForm.id = null
         userForm.username = ''
         userForm.realname = ''
         userForm.email = ''
-        userForm.mobile = ''                   // 💡 新增：清空手机号
+        userForm.mobile = ''
         userForm.status = 1
         userForm.password = ''
 
-        // 💡 新增：根据登录人身份初始化租户 ID
         if (currentLoginUser.tenantId === 0) {
-            // 如果是平台超级管理员，让输入框亮起，初始值设为 null 让超管手动填写
             userForm.tenantId = null
         } else {
-            // 如果是普通租户管理员，输入框会隐藏，直接塞入他自己的租户ID，随表单一起提交
             userForm.tenantId = currentLoginUser.tenantId
         }
     }
@@ -362,7 +363,6 @@ const handleStatusChange = async (row) => {
         await updateUserStatus(row.id, row.status)
         ElMessage.success(`账户状态已成功变更为【${text}】`)
     } catch (err) {
-        // 撤销前端状态的强行切换
         row.status = row.status === 1 ? 0 : 1
     }
 }
@@ -371,7 +371,6 @@ const handleStatusChange = async (row) => {
 const openPermissionDialog = (row) => {
     permDialog.userId = row.id
     permDialog.username = row.username
-    // 将用户当前拥有的角色ID提取出来放入数组
     permDialog.checkedRoles = row.roles ? row.roles.map(r => r.id) : []
     permDialog.visible = true
 }
@@ -383,7 +382,7 @@ const submitRoleAssignment = async () => {
         await assignUserRoles(permDialog.userId, permDialog.checkedRoles)
         ElMessage.success(`成功为用户 [${permDialog.username}] 更新安全角色授权`)
         permDialog.visible = false
-        fetchUserData() // 刷新带出最新的角色标签
+        fetchUserData()
     } catch (err) {
         console.error(err)
     } finally {
@@ -415,29 +414,23 @@ onMounted(() => {
 
 <style scoped>
 .user-management-container {
-    padding: 4px;
     display: flex;
     flex-direction: column;
     gap: 16px;
 }
 
-.query-card, .table-card {
-    background-color: #1e293b !important;
-    border: 1px solid #334155 !important;
+.filter-card {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    padding: 18px 20px 2px 20px;
 }
 
-:deep(.el-form-item__label) {
-    color: #94a3b8 !important;
-}
-
-:deep(.el-input__wrapper), :deep(.el-select__wrapper) {
-    background-color: #0f172a !important;
-    border: 1px solid #334155 !important;
-    box-shadow: none !important;
-}
-
-:deep(.el-input__inner) {
-    color: #f8fafc !important;
+.table-card {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    padding: 16px;
 }
 
 .table-tool-bar {
@@ -446,29 +439,96 @@ onMounted(() => {
     align-items: center;
     margin-bottom: 16px;
 }
-
 .total-text {
     font-size: 13px;
-    color: #64748b;
+    color: #94a3b8;
 }
 
+.action-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.code-text {
+    font-family: monospace;
+    color: #38bdf8;
+    font-weight: 600;
+}
 .role-tag {
     margin-right: 6px;
 }
 
+/* 统一暗黑表格 */
+:deep(.dark-table) {
+    background-color: transparent !important;
+    --el-table-border-color: #334155;
+    --el-table-header-bg-color: #0f172a;
+    --el-table-row-hover-bg-color: #1e293b;
+    color: #e2e8f0;
+}
+:deep(.dark-table th.el-table__cell) {
+    background-color: #0f172a !important;
+    color: #38bdf8;
+    font-weight: 600;
+}
+:deep(.dark-table tr) {
+    background-color: #1e293b !important;
+}
+
+/* 分页 */
 .pagination-container {
-    margin-top: 20px;
+    margin-top: 16px;
     display: flex;
     justify-content: flex-end;
 }
+:deep(.el-pagination) {
+    --el-pagination-button-bg-color: #0f172a;
+    --el-pagination-hover-color: #38bdf8;
+    color: #94a3b8;
+}
 
-/* 弹窗样式优化 */
+/* 表单暗黑 */
+:deep(.dark-form .el-form-item__label) {
+    color: #94a3b8 !important;
+}
+:deep(.el-input__wrapper), :deep(.el-select__wrapper), :deep(.el-input-number__inner) {
+    background-color: #0f172a !important;
+    box-shadow: 0 0 0 1px #334155 inset !important;
+}
+:deep(.el-input__inner) {
+    color: #f8fafc !important;
+}
+
+/* 全局统一按钮 */
+.glow-button {
+    background-color: #0284c7;
+    border: none;
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.3);
+}
+.dark-button {
+    background: #0f172a;
+    border: 1px solid #334155;
+    color: #94a3b8;
+}
+
+/* Dialog弹窗暗黑样式 */
 :deep(.dark-dialog) {
     background-color: #1e293b !important;
-    border: 1px solid #475569;
+    border: 1px solid #334155;
+}
+:deep(.dark-dialog .el-dialog__header) {
+    border-bottom: 1px solid #334155;
 }
 :deep(.dark-dialog .el-dialog__title) {
-    color: #38bdf8 !important;
+    color: #f8fafc;
+}
+:deep(.dark-dialog .el-dialog__body) {
+    color: #cbd5e1;
+}
+:deep(.dark-dialog .el-dialog__footer) {
+    border-top: 1px solid #334155;
 }
 
 .perm-transfer-box {
@@ -489,5 +549,14 @@ onMounted(() => {
 .role-desc-text {
     color: #64748b;
     font-size: 12px;
+}
+
+/* 单选框文字颜色 */
+:deep(.el-radio__label), :deep(.el-checkbox__label) {
+    color: #cbd5e1;
+}
+:deep(.el-radio__inner), :deep(.el-checkbox__inner) {
+    background-color: #0f172a;
+    border-color: #334155;
 }
 </style>

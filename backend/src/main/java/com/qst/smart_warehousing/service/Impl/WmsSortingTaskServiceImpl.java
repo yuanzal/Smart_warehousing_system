@@ -1,13 +1,20 @@
 package com.qst.smart_warehousing.service.Impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.qst.smart_warehousing.DTO.CreateSortingTaskDTO;
+import com.qst.smart_warehousing.DTO.SortingTaskQueryDTO;
 import com.qst.smart_warehousing.DTO.WmsAgvRealtimeLocDTO;
+import com.qst.smart_warehousing.VO.SortingTaskVO;
+import com.qst.smart_warehousing.VO.TaskOverviewVO;
 import com.qst.smart_warehousing.entity.*;
 import com.qst.smart_warehousing.mapper.*;
 import com.qst.smart_warehousing.service.IWmsAlertService;
 import com.qst.smart_warehousing.service.IWmsSortingTaskService;
+import com.qst.smart_warehousing.util.SecurityUtil;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,13 +23,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -341,5 +347,81 @@ public class WmsSortingTaskServiceImpl extends ServiceImpl<WmsSortingTaskMapper,
         }
 
         return false;
+    }
+    @Override
+    public IPage<SortingTaskVO> getTaskPage(SortingTaskQueryDTO queryDTO) {
+        Integer tenantId = SecurityUtil.getTenantId(); // 替换成你项目的上下文工具
+        Page<SortingTaskVO> page = new Page<>(queryDTO.getPageNum(), queryDTO.getPageSize());
+        return baseMapper.selectTaskPage(page, queryDTO, tenantId);
+    }
+
+    @Override
+    public TaskOverviewVO getTodayOverview() {
+        Integer tenantId = SecurityUtil.getTenantId();
+        LocalDate today = LocalDate.now();
+
+        // 按状态分组统计今日任务
+        List<Map<String, Object>> statusCount = this.list(new QueryWrapper<WmsSortingTask>()
+                        .select("status, count(*) as cnt")
+                        .eq("tenant_id", tenantId)
+                        .apply("DATE(create_time) = {0}", today)
+                        .groupBy("status")
+                ).stream().map(task -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("status", task.getStatus());
+                    map.put("cnt", 1);
+                    return map;
+                }).collect(Collectors.groupingBy(m -> m.get("status")))
+                .entrySet().stream().map(e -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("status", e.getKey());
+                    map.put("cnt", e.getValue().size());
+                    return map;
+                }).collect(Collectors.toList());
+
+        TaskOverviewVO vo = new TaskOverviewVO();
+        int total = 0;
+        for (Map<String, Object> map : statusCount) {
+            Integer status = (Integer) map.get("status");
+            Integer cnt = ((Number) map.get("cnt")).intValue();
+            total += cnt;
+            if (status == 3) vo.setTransportingCount(cnt);
+            if (status == 4) vo.setCompletedCount(cnt);
+            if (status == 5) vo.setExceptionCount(cnt);
+        }
+        vo.setTotalCount(total);
+
+        // 空值兜底
+        if (vo.getTransportingCount() == null) vo.setTransportingCount(0);
+        if (vo.getCompletedCount() == null) vo.setCompletedCount(0);
+        if (vo.getExceptionCount() == null) vo.setExceptionCount(0);
+        return vo;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean retryTask(Long taskId) {
+        WmsSortingTask task = this.getById(taskId);
+        if (task == null || task.getStatus() != 5) {
+            return false;
+        }
+        // 重置为路由计算状态，清空AGV分配等待重新调度
+        task.setStatus(2);
+        task.setAssignedAgvId(null);
+        task.setEndTime(null);
+        return this.updateById(task);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean cancelTask(Long taskId) {
+        WmsSortingTask task = this.getById(taskId);
+        if (task == null || !Arrays.asList(1, 2, 3).contains(task.getStatus())) {
+            return false;
+        }
+        // 置为异常终止状态
+        task.setStatus(5);
+        task.setEndTime(LocalDateTime.now());
+        return this.updateById(task);
     }
 }

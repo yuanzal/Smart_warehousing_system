@@ -13,6 +13,7 @@ import DeviceManagement from '@/views/DeviceManagement.vue'
 import ParcelFile from "@/views/ParcelFile.vue";
 import SlotManagement from "@/views/SlotManagement.vue";
 import ManualDispatchingConsole from "@/views/ManualDispatchingConsole.vue";
+import SortingTask from "@/views/SortingTask.vue";
 
 // 定义路由规则
 const routes = [
@@ -71,6 +72,12 @@ const routes = [
         name: 'InventoryLogs',
         component: Placeholder,
         meta: { title: '库存流转流水账', requiresAuth: true }
+      },
+      {
+        path: 'sortingTask',
+        name: 'SortingTask',
+        component: SortingTask,
+        meta: { title: '分拣任务详情追踪', requiresAuth: true }
       },
       {
         path: 'manualDispatchingConsole',

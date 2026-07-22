@@ -1,9 +1,5 @@
-
-
 <template>
   <div id="app">
-
-    
     <!-- 路由出口：匹配的组件将在这里渲染 -->
     <router-view class="p-4"></router-view>
   </div>

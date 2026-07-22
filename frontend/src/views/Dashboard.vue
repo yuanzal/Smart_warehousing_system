@@ -258,7 +258,6 @@ let statusTimer = null
 let alarmTimer = null
 let dataTimer = null
 
-// TODO: 改为真实数据
 // ===== 物联网告警模拟数据源 =====
 const alarmList = ref([])
 // 后端级别 → 前端CSS类名映射

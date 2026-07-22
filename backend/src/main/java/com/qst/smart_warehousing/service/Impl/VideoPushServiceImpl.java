@@ -17,14 +17,18 @@ public class VideoPushServiceImpl implements VideoPushService {
     private static final Logger logger = LoggerFactory.getLogger(VideoPushServiceImpl.class);
 
     // ===== 配置项（从 application.yml 注入） =====
-    @Value("${ffmpeg.path:C:/ffmpeg/ffmpeg-8.1.2-essentials_build/bin/ffmpeg.exe}")
+    @Value("${video.ffmpeg.path:C:/ffmpeg/ffmpeg-8.1.2-essentials_build/bin/ffmpeg.exe}")
     private String ffmpegPath;
 
     @Value("${video.test.source:C:/Users/12256/Downloads/Test Jellyfin 1080p AVC 3M.mp4}")
     private String testVideoSource;
 
     // HLS 输出目录（必须与 Nginx 的 hls_path 一致）
-    private final String hlsDir = "C:/nginx-rtmp/html/hls";
+    @Value("${video.hls.output-dir:C:/nginx-rtmp/html/hls}")
+    private String hlsDir;
+
+    @Value("${video.hls.prefix:http://localhost:8081/hls/}")
+    private String hlsPrefix;
 
     // 进程管理
     private final ConcurrentHashMap<String, Process> processMap = new ConcurrentHashMap<>();

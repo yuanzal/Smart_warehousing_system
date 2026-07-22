@@ -51,3 +51,17 @@ logging:
     org.springframework.security: DEBUG
     org.springframework.security.authentication: DEBUG
     com.qst.smart_warehousing.mapper: DEBUG
+
+ai:
+  service:
+    url: http://localhost:8001
+
+# 视频转码服务配置
+video:
+  ffmpeg:
+    path: D:/project/java/ffmpeg/bin/ffmpeg.exe          # 改成你自己的ffmpeg.exe路径
+  test:
+    source: D:\project\java\SmartWarehousing\backend\src\main\resources\test.mp4          # 测试用本地视频路径（没有摄像头就用这个）
+  hls:
+    output-dir: Y:\codingLog\codeart\nginx 1.7.11.3 Gryphon\html\hls          # HLS切片文件输出目录
+    prefix: http://localhost:8081/hls/      # Nginx对外访问的HLS地址前缀

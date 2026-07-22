@@ -1,6 +1,11 @@
 package com.qst.smart_warehousing.controller;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.qst.smart_warehousing.DTO.CreateSortingTaskDTO;
+import com.qst.smart_warehousing.DTO.SortingTaskQueryDTO;
+import com.qst.smart_warehousing.VO.SortingTaskVO;
+import com.qst.smart_warehousing.VO.TaskOverviewVO;
+import com.qst.smart_warehousing.entity.Result;
 import com.qst.smart_warehousing.entity.WmsSortingTask;
 import com.qst.smart_warehousing.service.Impl.WmsSortingTaskServiceImpl;
 import io.swagger.v3.oas.annotations.Operation;
@@ -102,5 +107,31 @@ public class WmsSortingTaskController {
             return ResponseEntity.ok(response);
         }
         return ResponseEntity.status(500).body("回调异常，任务单或小车状态不匹配");
+    }
+
+    @Operation(summary = "页面概览：今日分拣任务指标统计")
+    @GetMapping("/overview")
+    public Result<TaskOverviewVO> getTodayOverview() {
+        return Result.ok(sortingTaskService.getTodayOverview());
+    }
+
+    @Operation(summary = "页面列表：分页条件查询分拣任务")
+    @GetMapping("/page")
+    public Result<IPage<SortingTaskVO>> getTaskPage(SortingTaskQueryDTO queryDTO) {
+        return Result.ok(sortingTaskService.getTaskPage(queryDTO));
+    }
+
+    @Operation(summary = "人工操作：重新调度异常任务")
+    @PostMapping("/retry/{taskId}")
+    public Result<Boolean> retryTask(@PathVariable Long taskId) {
+        boolean success = sortingTaskService.retryTask(taskId);
+        return success ? Result.ok(true) : Result.error(500,"任务状态不支持重新调度");
+    }
+
+    @Operation(summary = "人工操作：紧急拦截终止任务")
+    @PostMapping("/cancel/{taskId}")
+    public Result<Boolean> cancelTask(@PathVariable Long taskId) {
+        boolean success = sortingTaskService.cancelTask(taskId);
+        return success ? Result.ok(true) : Result.error(500,"任务状态不支持紧急拦截");
     }
 }

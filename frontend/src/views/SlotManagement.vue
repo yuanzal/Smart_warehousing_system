@@ -1,7 +1,7 @@
 <template>
-    <div class="slot-container p-4">
-        <el-card class="query-card mb-4" shadow="never">
-            <el-form :inline="true" :model="queryParams" size="default">
+    <div class="slot-container">
+        <div class="filter-card">
+            <el-form :inline="true" :model="queryParams" size="default" class="dark-form">
                 <el-form-item label="货位代码">
                     <el-input v-model="queryParams.slotCode" placeholder="如: A-1-01" clearable />
                 </el-form-item>
@@ -17,17 +17,21 @@
                     </el-select>
                 </el-form-item>
                 <el-form-item>
-                    <el-button type="primary" @click="fetchSlots">🔍 查询</el-button>
-                    <el-button @click="resetQuery">🔄 重置</el-button>
-                    <el-button type="success" @click="openAddDialog">➕ 新增立体货位</el-button>
+                    <el-button type="primary" class="glow-button" @click="fetchSlots">🔍 查询</el-button>
+                    <el-button class="dark-button" @click="resetQuery">🔄 重置</el-button>
+                    <el-button type="primary" class="glow-button" @click="openAddDialog">➕ 新增立体货位</el-button>
                 </el-form-item>
             </el-form>
-        </el-card>
+        </div>
 
-        <el-card class="table-card" shadow="never">
-            <el-table :data="tableData" v-loading="loading" border>
+        <div class="table-card">
+            <el-table :data="tableData" v-loading="loading" class="dark-table">
                 <el-table-column prop="slotId" label="货位系统ID" width="80" align="center" />
-                <el-table-column prop="slotCode" label="货位编码" width="120" />
+                <el-table-column prop="slotCode" label="货位编码" width="120">
+                    <template #default="{ row }">
+                        <span class="code-text">{{ row.slotCode }}</span>
+                    </template>
+                </el-table-column>
                 <el-table-column prop="zoneName" label="所属库区" width="120" />
                 <el-table-column label="货架 行/列/层" width="140">
                     <template #default="{ row }">
@@ -36,62 +40,69 @@
                 </el-table-column>
                 <el-table-column label="3D坐标 (X,Y,Z)" width="220">
                     <template #default="{ row }">
-                        <el-tag size="small">X: {{ row.xcoordinate }}</el-tag>
-                        <el-tag size="small" class="ml-1">Y: {{ row.ycoordinate }}</el-tag>
-                        <el-tag size="small" class="ml-1">Z: {{ row.zcoordinate }}</el-tag>
+                        <el-tag size="small" effect="dark">X: {{ row.xcoordinate }}</el-tag>
+                        <el-tag size="small" class="ml-1" effect="dark">Y: {{ row.ycoordinate }}</el-tag>
+                        <el-tag size="small" class="ml-1" effect="dark">Z: {{ row.zcoordinate }}</el-tag>
                     </template>
                 </el-table-column>
-                <el-table-column prop="maxWeight" label="最大承重 (kg)" width="120" />
-                <el-table-column prop="currentWeight" label="当前载荷 (kg)" width="120">
+                <el-table-column prop="maxWeight" label="最大承重 (kg)" width="120" align="center" />
+                <el-table-column prop="currentWeight" label="当前载荷 (kg)" width="120" align="center">
                     <template #default="{ row }">
-            <span :class="{ 'text-red-500 font-bold': row.currentWeight > row.maxWeight }">
-              {{ row.currentWeight ?? 0 }}
-            </span>
+                        <span :class="{ 'text-red-warning font-bold': row.currentWeight > row.maxWeight }">
+                            {{ row.currentWeight ?? 0 }}
+                        </span>
                     </template>
                 </el-table-column>
-                <el-table-column prop="status" label="货位状态" width="130">
+                <el-table-column prop="status" label="货位状态" width="130" align="center">
                     <template #default="{ row }">
                         <el-badge :is-dot="row.currentWeight > row.maxWeight" class="item">
-                            <el-tag :type="statusMap[row.status].type">{{ statusMap[row.status].label }}</el-tag>
+                            <el-tag :type="statusMap[row.status].type" effect="dark">
+                                {{ statusMap[row.status].label }}
+                            </el-tag>
                         </el-badge>
                     </template>
                 </el-table-column>
                 <el-table-column prop="parcelCode" label="关联包裹" min-width="150">
                     <template #default="{ row }">
-                        <span v-if="row.parcelCode" class="text-blue-400 font-mono">{{ row.parcelCode }}</span>
-                        <span v-else class="text-gray-500">- 空闲 -</span>
+                        <span v-if="row.parcelCode" class="code-text">{{ row.parcelCode }}</span>
+                        <span v-else class="text-muted">- 空闲 -</span>
                     </template>
                 </el-table-column>
                 <!-- 仅超管显示租户ID -->
                 <el-table-column v-if="isPlatformAdmin" prop="tenantId" label="租户ID" width="90" align="center" />
-                <el-table-column label="快捷操作" width="240" fixed="right">
+                <el-table-column label="快捷操作" width="240" fixed="right" align="center">
                     <template #default="{ row }">
-                        <el-button link type="primary" @click="openEditDialog(row)">编辑</el-button>
-                        <el-button link type="warning" @click="toggleRepairStatus(row)">
-                            {{ row.status === 3 ? '解除维修' : '设为故障' }}
-                        </el-button>
-                        <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
+                        <div class="action-cell">
+                            <el-button link type="primary" @click="openEditDialog(row)">
+                                <span> 编辑</span>
+                            </el-button>
+                            <el-button link type="warning" @click="toggleRepairStatus(row)">
+                                {{ row.status === 3 ? '解除维修' : '设为故障' }}
+                            </el-button>
+                            <el-button link type="danger" @click="handleDelete(row)">
+                                <span> 删除</span>
+                            </el-button>
+                        </div>
                     </template>
                 </el-table-column>
             </el-table>
             <!-- 分页 -->
-            <div class="pagination-area mt-4 flex justify-end">
+            <div class="pagination-area">
                 <el-pagination
-                        v-model:current-page="queryParams.current"
-                        v-model:page-size="queryParams.size"
-                        :page-sizes="[10,20,50]"
-                        layout="total, sizes, prev, pager, next, jumper"
-                        :total="total"
-                        @size-change="fetchSlots"
-                        @current-change="fetchSlots"
+                    v-model:current-page="queryParams.current"
+                    v-model:page-size="queryParams.size"
+                    :page-sizes="[10,20,50]"
+                    layout="total, sizes, prev, pager, next, jumper"
+                    :total="total"
+                    @size-change="fetchSlots"
+                    @current-change="fetchSlots"
                 />
             </div>
-        </el-card>
+        </div>
 
         <!-- 新增/编辑弹窗 -->
-        <!-- 新增/编辑弹窗 -->
-        <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑货位信息' : '新增立体仓储货位'" width="720px" destroy-on-close>
-            <el-form :model="slotForm" ref="slotFormRef" label-width="110px" :rules="slotRules">
+        <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑货位信息' : '新增立体仓储货位'" width="720px" destroy-on-close custom-class="dark-dialog">
+            <el-form :model="slotForm" ref="slotFormRef" label-width="110px" :rules="slotRules" class="dark-form">
                 <el-form-item label="货位编码" prop="slotCode">
                     <el-input v-model="slotForm.slotCode" placeholder="例如: A-1-05" :disabled="isEdit" />
                 </el-form-item>
@@ -129,8 +140,10 @@
                 </el-form-item>
             </el-form>
             <template #footer>
-                <el-button @click="dialogVisible = false">取消</el-button>
-                <el-button type="primary" :loading="submitLoading" @click="submitSlot">保存</el-button>
+                <div class="dialog-footer">
+                    <el-button class="dark-button" @click="dialogVisible = false">取消</el-button>
+                    <el-button type="primary" class="glow-button" :loading="submitLoading" @click="submitSlot">保存</el-button>
+                </div>
             </template>
         </el-dialog>
     </div>
@@ -315,27 +328,113 @@ onMounted(() => fetchSlots())
 
 <style scoped>
 .slot-container {
-    color: #f8fafc;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
 }
-.query-card, .table-card {
-    background-color: #1e293b !important;
-    border: 1px solid #334155 !important;
+
+.filter-card {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    padding: 18px 20px 2px 20px;
 }
+
+.table-card {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    padding: 16px;
+}
+
 .inline-item {
     margin-bottom: 0 !important;
     flex: 1;
 }
+
+.action-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+/* 表格暗黑样式 与其他页面完全统一 */
+:deep(.dark-table) {
+    background-color: transparent !important;
+    --el-table-border-color: #334155;
+    --el-table-header-bg-color: #0f172a;
+    --el-table-row-hover-bg-color: #1e293b;
+    color: #e2e8f0;
+}
+:deep(.dark-table th.el-table__cell) {
+    background-color: #0f172a !important;
+    color: #38bdf8;
+    font-weight: 600;
+}
+:deep(.dark-table tr) {
+    background-color: #1e293b !important;
+}
+
+.code-text {
+    font-family: monospace;
+    color: #38bdf8;
+    font-weight: 600;
+}
+.text-muted { color: #64748b; }
+.text-red-warning { color: #f43f5e; }
+
+/* 分页 */
 .pagination-area {
+    margin-top: 16px;
+    display: flex;
+    justify-content: flex-end;
+}
+:deep(.el-pagination) {
+    --el-pagination-button-bg-color: #0f172a;
+    --el-pagination-hover-color: #38bdf8;
     color: #94a3b8;
 }
-:deep(.el-form-item__label) {
+
+/* 表单暗黑 */
+:deep(.dark-form .el-form-item__label) {
     color: #94a3b8 !important;
 }
-:deep(.el-input__wrapper), :deep(.el-input-number__inner) {
+:deep(.el-input__wrapper), :deep(.el-select__wrapper), :deep(.el-input-number__inner) {
     background-color: #0f172a !important;
-    border: 1px solid #334155 !important;
+    box-shadow: 0 0 0 1px #334155 inset !important;
 }
 :deep(.el-input__inner) {
     color: #f8fafc !important;
+}
+
+/* 统一按钮样式 */
+.glow-button {
+    background-color: #0284c7;
+    border: none;
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.3);
+}
+.dark-button {
+    background: #0f172a;
+    border: 1px solid #334155;
+    color: #94a3b8;
+}
+
+/* Dialog弹窗暗黑 */
+:deep(.dark-dialog) {
+    background-color: #1e293b !important;
+    border: 1px solid #334155;
+}
+:deep(.dark-dialog .el-dialog__header) {
+    border-bottom: 1px solid #334155;
+}
+:deep(.dark-dialog .el-dialog__title) {
+    color: #f8fafc;
+}
+:deep(.dark-dialog .el-dialog__body) {
+    color: #cbd5e1;
+}
+:deep(.dark-dialog .el-dialog__footer) {
+    border-top: 1px solid #334155;
 }
 </style>

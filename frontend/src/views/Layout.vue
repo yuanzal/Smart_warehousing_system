@@ -45,6 +45,10 @@
                         <span class="menu-emoji">📜</span>
                         <span>库存流转流水账</span>
                     </el-menu-item>
+                    <el-menu-item index="/sortingTask">
+                        <span class="menu-emoji">🏷️</span>
+                        <span>分拣任务详情追踪</span>
+                    </el-menu-item>
                 </el-sub-menu>
 
                 <el-sub-menu index="master-data">

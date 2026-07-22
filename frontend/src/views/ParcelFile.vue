@@ -1,7 +1,7 @@
 <template>
     <div class="parcel-file-container">
-        <el-card class="query-card" shadow="never">
-            <el-form :inline="true" :model="queryParams" size="default">
+        <div class="filter-card">
+            <el-form :inline="true" :model="queryParams" size="default" class="dark-form">
                 <el-form-item label="包裹条码">
                     <el-input v-model="queryParams.barcode" placeholder="请输入完整或部分条码" clearable />
                 </el-form-item>
@@ -17,55 +17,65 @@
                     </el-select>
                 </el-form-item>
                 <el-form-item>
-                    <el-button type="primary" @click="handleQuery">🔍 查询</el-button>
-                    <el-button @click="resetQuery">🔄 重置</el-button>
+                    <el-button type="primary" class="glow-button" @click="handleQuery">🔍 查询</el-button>
+                    <el-button class="dark-button" @click="resetQuery">🔄 重置</el-button>
                 </el-form-item>
             </el-form>
-        </el-card>
+        </div>
 
-        <el-card class="table-card" shadow="never">
+        <div class="table-card">
             <div class="table-tool-bar">
                 <span class="total-text">共检索到 {{ total }} 个包裹档案</span>
-                <el-button type="success" size="default" @click="openAddDialog">➕ 登记新包裹</el-button>
+                <el-button type="primary" class="glow-button" size="default" @click="openAddDialog">➕ 登记新包裹</el-button>
             </div>
 
-            <el-table :data="tableData" v-loading="loading" style="width: 100%" border>
+            <el-table :data="tableData" v-loading="loading" style="width: 100%" class="dark-table">
                 <el-table-column prop="id" label="系统ID" width="100" show-overflow-tooltip />
-                <el-table-column prop="barcode" label="包裹条码" min-width="150" />
-                <el-table-column prop="weight" label="重量 (kg)" width="100" />
-                <el-table-column label="物理尺寸 (L*W*H mm)" width="180">
+                <el-table-column prop="barcode" label="包裹条码" min-width="150">
+                    <template #default="{ row }">
+                        <span class="code-text">{{ row.barcode }}</span>
+                    </template>
+                </el-table-column>
+                <el-table-column prop="weight" label="重量 (kg)" width="100" align="center" />
+                <el-table-column label="物理尺寸 (L*W*H mm)" width="180" align="center">
                     <template #default="{ row }">
                         <span v-if="row.length && row.width && row.height" class="dim-badge">
                             {{ parseInt(row.length) }} × {{ parseInt(row.width) }} × {{ parseInt(row.height) }}
                         </span>
-                        <span v-else class="text-gray-500">-</span>
+                        <span v-else class="text-muted">-</span>
                     </template>
                 </el-table-column>
-                <el-table-column prop="volume" label="体积 (mm³)" width="130" show-overflow-tooltip>
+                <el-table-column prop="volume" label="体积 (mm³)" width="130" show-overflow-tooltip align="center">
                     <template #default="{ row }">
                         <span>{{ row.volume ? Number(row.volume).toLocaleString() : '-' }}</span>
                     </template>
                 </el-table-column>
                 <el-table-column prop="tenantId" label="所属租户" width="100" align="center" v-if="isPlatformAdmin" />
-                <el-table-column prop="status" label="当前状态" width="130">
+                <el-table-column prop="status" label="当前状态" width="130" align="center">
                     <template #default="{ row }">
-                        <el-tag :type="statusMap[row.status]?.type || 'info'">
+                        <el-tag :type="statusMap[row.status]?.type || 'info'" effect="dark" class="status-tag">
                             {{ statusMap[row.status]?.label || '未知状态' }}
                         </el-tag>
                     </template>
                 </el-table-column>
-                <el-table-column prop="isDamaged" label="破损状态" width="110">
+                <el-table-column prop="isDamaged" label="破损状态" width="110" align="center">
                     <template #default="{ row }">
-                        <el-tag :type="row.isDamaged === 1 ? 'danger' : 'success'">
+                        <el-tag :type="row.isDamaged === 1 ? 'danger' : 'success'" effect="dark">
                             {{ row.isDamaged === 1 ? '💔 破损' : '💚 完好' }}
                         </el-tag>
                     </template>
                 </el-table-column>
-                <el-table-column prop="updateTime" label="最后更新时间" width="180" />
-                <el-table-column label="快捷管理" width="180" fixed="right">
+                <el-table-column prop="updateTime" label="最后更新时间" width="180" align="center" />
+                <el-table-column label="快捷管理" width="180" fixed="right" align="center">
                     <template #default="{ row }">
-                        <el-button type="primary" link @click="openEditDialog(row)">编辑</el-button>
-                        <el-button type="danger" link @click="handleDelete(row)">删除</el-button>
+                        <div class="action-cell">
+                            <el-button link type="primary" @click="openEditDialog(row)">
+                                <span>编辑</span>
+                            </el-button>
+                            <el-button link type="danger" @click="handleDelete(row)">
+                                <span>删除</span>
+                            </el-button>
+                        </div>
                     </template>
                 </el-table-column>
             </el-table>
@@ -81,15 +91,14 @@
                     @current-change="handleCurrentChange"
                 />
             </div>
-        </el-card>
+        </div>
 
-        <el-dialog :title="dialogTitle" v-model="dialogVisible" width="550px" destroy-on-close>
-            <el-form :model="form" ref="formRef" :rules="formRules" label-width="110px">
+        <el-dialog :title="dialogTitle" v-model="dialogVisible" width="550px" destroy-on-close custom-class="dark-dialog">
+            <el-form :model="form" ref="formRef" :rules="formRules" label-width="110px" class="dark-form">
                 <el-form-item label="包裹条码" prop="barcode">
                     <el-input v-model="form.barcode" placeholder="请输入条码 (如 SF100293)" :disabled="!!form.id" />
                 </el-form-item>
 
-                <!-- 【新增】仅平台超管+新增模式下显示租户ID输入框 -->
                 <el-form-item v-if="isPlatformAdmin && !isEdit" label="所属租户" prop="tenantId">
                     <el-input-number
                         v-model="form.tenantId"
@@ -150,13 +159,14 @@
                 </el-form-item>
             </el-form>
             <template #footer>
-                <el-button @click="dialogVisible = false">取消</el-button>
-                <el-button type="primary" :loading="submitLoading" @click="submitForm">确定保存</el-button>
+                <div class="dialog-footer">
+                    <el-button class="dark-button" @click="dialogVisible = false">取消</el-button>
+                    <el-button type="primary" class="glow-button" :loading="submitLoading" @click="submitForm">确定保存</el-button>
+                </div>
             </template>
         </el-dialog>
     </div>
 </template>
-
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
@@ -171,13 +181,11 @@ const dialogTitle = ref('创建包裹档案')
 const submitLoading = ref(false)
 const formRef = ref(null)
 
-// ========== 【新增】读取当前登录用户信息，判断是否平台超级管理员 ==========
 const getCurrentUser = () => {
     try {
         const raw = localStorage.getItem('userInfo')
         if (!raw) return { tenantId: 1 }
         const userInfo = JSON.parse(raw)
-        // 兼容两种存储结构：直接对象 / 带data外层包裹
         return userInfo.data || userInfo
     } catch (e) {
         console.error('解析用户信息失败', e)
@@ -185,9 +193,7 @@ const getCurrentUser = () => {
     }
 }
 const currentUser = getCurrentUser()
-// 租户ID为0 = 平台顶级管理员
 const isPlatformAdmin = currentUser.tenantId === 0
-// ======================================================================
 
 const queryParams = reactive({
     current: 1,
@@ -206,7 +212,7 @@ const form = reactive({
     height: null,
     volume: null,
     isDamaged: 0,
-    tenantId: null // 【新增】租户ID字段
+    tenantId: null
 })
 
 const formRules = {
@@ -215,7 +221,6 @@ const formRules = {
     length: [{ required: true, message: '长度不能为空', trigger: 'blur' }],
     width: [{ required: true, message: '宽度不能为空', trigger: 'blur' }],
     height: [{ required: true, message: '高度不能为空', trigger: 'blur' }],
-    // 【新增】超管场景下租户ID必填
     tenantId: isPlatformAdmin ? [{ required: true, message: '请输入所属租户ID', trigger: 'blur' }] : []
 }
 
@@ -229,7 +234,6 @@ const statusMap = {
 
 const total = ref(0)
 
-// 自动计算体积
 const calcVolume = () => {
     if (form.length && form.width && form.height) {
         form.volume = parseFloat((form.length * form.width * form.height).toFixed(2))
@@ -270,7 +274,6 @@ const resetQuery = () => {
     fetchParcels()
 }
 
-// 分页控制
 const handleSizeChange = (newSize) => {
     queryParams.size = newSize
     queryParams.current = 1
@@ -293,7 +296,6 @@ const openAddDialog = () => {
     form.height = null
     form.volume = null
     form.isDamaged = 0
-    // 【新增】初始化租户ID：超管留空让用户输入，普通用户自动填入自身租户ID
     form.tenantId = isPlatformAdmin ? null : currentUser.tenantId
     dialogVisible.value = true
 }
@@ -332,7 +334,7 @@ const submitForm = async () => {
                 height: form.height,
                 volume: form.volume,
                 isDamaged: form.isDamaged,
-                tenantId: form.tenantId, // 【新增】携带租户ID提交
+                tenantId: form.tenantId,
                 status: isEdit.value ? undefined : 1
             }
 
@@ -376,19 +378,25 @@ onMounted(() => fetchParcels())
 
 <style scoped>
 .parcel-file-container {
-    padding: 16px;
     display: flex;
     flex-direction: column;
     gap: 16px;
 }
-.query-card {
-    background-color: #1e293b !important;
-    border: 1px solid #334155 !important;
+
+.filter-card {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    padding: 18px 20px 2px 20px;
 }
+
 .table-card {
-    background-color: #1e293b !important;
-    border: 1px solid #334155 !important;
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    padding: 16px;
 }
+
 .table-tool-bar {
     display: flex;
     justify-content: space-between;
@@ -399,40 +407,76 @@ onMounted(() => fetchParcels())
     font-size: 14px;
     color: #94a3b8;
 }
-.dim-badge {
-    background-color: #f8fafc;
-    padding: 4px 8px;
-    border-radius: 4px;
+
+/* 表格全局暗黑 与分拣页面完全统一 */
+:deep(.dark-table) {
+    background-color: transparent !important;
+    --el-table-border-color: #334155;
+    --el-table-header-bg-color: #0f172a;
+    --el-table-row-hover-bg-color: #1e293b;
+    color: #e2e8f0;
+}
+:deep(.dark-table th.el-table__cell) {
+    background-color: #0f172a !important;
+    color: #38bdf8;
+    font-weight: 600;
+}
+:deep(.dark-table tr) {
+    background-color: #1e293b !important;
+}
+
+.code-text {
     font-family: monospace;
     color: #38bdf8;
-    border: 1px solid #1e293b;
+    font-weight: 600;
 }
+.dim-badge {
+    font-family: monospace;
+    color: #38bdf8;
+}
+.text-muted { color: #64748b; }
+
 .dimensions-group {
     display: flex;
     align-items: center;
+    gap: 6px;
     width: 100%;
 }
-.inline-item {
-    margin-bottom: 0 !important;
-    flex: 1;
-}
 .multiply-sign {
-    padding: 0 8px;
     color: #64748b;
     font-weight: bold;
 }
+.unit-text {
+    color: #94a3b8;
+    padding-left: 6px;
+}
+
+.action-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+/* 分页 */
 .pagination-area {
+    margin-top: 16px;
     display: flex;
     justify-content: flex-end;
-    margin-top: 16px;
 }
-:deep(.el-form-item__label) {
+:deep(.el-pagination) {
+    --el-pagination-button-bg-color: #0f172a;
+    --el-pagination-hover-color: #38bdf8;
+    color: #94a3b8;
+}
+
+/* 表单控件暗黑 */
+:deep(.dark-form .el-form-item__label) {
     color: #94a3b8 !important;
 }
-:deep(.el-input__wrapper), :deep(.el-select__wrapper) {
+:deep(.el-input__wrapper), :deep(.el-select__wrapper), :deep(.el-input-number__inner) {
     background-color: #0f172a !important;
-    border: 1px solid #334155 !important;
-    box-shadow: none !important;
+    box-shadow: 0 0 0 1px #334155 inset !important;
 }
 :deep(.el-input__inner) {
     color: #f8fafc !important;
@@ -442,5 +486,44 @@ onMounted(() => fetchParcels())
     color: #94a3b8;
     border: 1px solid #334155 !important;
     border-left: none !important;
+}
+
+/* 按钮全局统一 */
+.glow-button {
+    background-color: #0284c7;
+    border: none;
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.3);
+}
+.dark-button {
+    background: #0f172a;
+    border: 1px solid #334155;
+    color: #94a3b8;
+}
+
+/* Dialog 弹窗暗黑 */
+:deep(.dark-dialog) {
+    background-color: #1e293b !important;
+    border: 1px solid #334155;
+}
+:deep(.dark-dialog .el-dialog__header) {
+    border-bottom: 1px solid #334155;
+}
+:deep(.dark-dialog .el-dialog__title) {
+    color: #f8fafc;
+}
+:deep(.dark-dialog .el-dialog__body) {
+    color: #cbd5e1;
+}
+:deep(.dark-dialog .el-dialog__footer) {
+    border-top: 1px solid #334155;
+}
+
+/* Radio单选 */
+:deep(.el-radio__label) {
+    color: #cbd5e1;
+}
+:deep(.el-radio__inner) {
+    background-color: #0f172a;
+    border-color: #334155;
 }
 </style>
